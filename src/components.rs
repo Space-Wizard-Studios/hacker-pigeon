@@ -45,3 +45,6 @@ pub struct WeakPoint {
 // --- UI Components ---
 #[derive(Component)]
 pub struct HpText;
+
+#[derive(Component)]
+pub struct DebugText;
