@@ -11,14 +11,23 @@ const PLAYER_SPEED: f32 = 250.0;
 const PLAYER_DASH_SPEED: f32 = 1000.0;
 const PLAYER_DASH_DURATION: f32 = 0.15;
 const FRICTION: f32 = 5.0;
+const GROUND_FRICTION: f32 = 10.0;
 const CHARGING_FRICTION: f32 = 10.0;
-const GRAVITY: f32 = 980.0;
+const GRAVITY: f32 = 750.0; // Reduzido de 980.0
 const FLOOR_Y: f32 = -250.0;
+const BURST_FORCE: f32 = 500.0; // Metade de PLAYER_DASH_SPEED, sempre pra cima
+const GROUND_HOP_FORCE: f32 = 250.0;
+const AERIAL_VERTICAL_THRUST: f32 = 1000.0;
+const AERIAL_DOWNWARD_FORCE: f32 = 1500.0;
+const ABILITY_COOLDOWN: f32 = 1.0; // Cooldown de 1 segundo para burst e charge
 
 // --- Components ---
 
 #[derive(Component)]
 struct Player;
+
+#[derive(Component)]
+struct Grounded;
 
 #[derive(Component, Default, Deref, DerefMut)]
 struct Velocity(Vec2);
@@ -27,6 +36,9 @@ struct Velocity(Vec2);
 struct Dashing {
     timer: Timer,
 }
+
+#[derive(Component)]
+struct AbilityCooldown(Timer);
 
 #[derive(Component)]
 struct Health {
@@ -52,7 +64,6 @@ struct AimArrow;
 struct Charging {
     direction: Vec2,
 }
-
 
 fn main() {
     App::new()
@@ -81,9 +92,10 @@ fn main() {
             player_movement_system,
             player_charge_system,
             dashing_system,
+            ability_cooldown_system,
             apply_velocity_system,
             floor_collision_system,
-            friction_system, // Adicionado para movimento suave
+            friction_system,
             update_hp_ui_system,
             collision_system,
             death_system,
@@ -257,32 +269,70 @@ fn death_system(mut commands: Commands, query: Query<(Entity, &Health)>) {
 }
 
 fn player_movement_system(
+    mut commands: Commands,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut Velocity, (With<Player>, Without<Dashing>, Without<Charging>)>,
+    mut query: Query<(Entity, &mut Velocity, Option<&Grounded>, Option<&AbilityCooldown>), (With<Player>, Without<Dashing>, Without<Charging>)>,
     time: Res<Time>
 ) {
-    if let Ok(mut velocity) = query.get_single_mut() {
-        let mut direction = Vec2::ZERO;
-        if keyboard_input.pressed(KeyCode::KeyW) { direction.y += 1.0; }
-        if keyboard_input.pressed(KeyCode::KeyS) { direction.y -= 1.0; }
-        if keyboard_input.pressed(KeyCode::KeyA) { direction.x -= 1.0; }
-        if keyboard_input.pressed(KeyCode::KeyD) { direction.x += 1.0; }
-        if direction != Vec2::ZERO {
-            velocity.0 += direction.normalize() * PLAYER_ACCELERATION * time.delta_seconds();
+    if let Ok((player_entity, mut velocity, grounded_opt, cooldown_opt)) = query.get_single_mut() {
+        let mut direction_x = 0.0;
+        if keyboard_input.pressed(KeyCode::KeyA) { direction_x -= 1.0; }
+        if keyboard_input.pressed(KeyCode::KeyD) { direction_x += 1.0; }
+
+        let is_grounded = grounded_opt.is_some();
+
+        // --- Vertical Movement ---
+
+        // Burst (Spacebar) has priority
+        if keyboard_input.just_pressed(KeyCode::Space) && cooldown_opt.is_none() {
+            velocity.y = BURST_FORCE;
+            commands.entity(player_entity).insert(AbilityCooldown(Timer::from_seconds(ABILITY_COOLDOWN, TimerMode::Once)));
+            if is_grounded {
+                commands.entity(player_entity).remove::<Grounded>();
+            }
+        } else {
+            // Other vertical movements if not bursting
+            if is_grounded {
+                // Hopping movement for A/D.
+                if direction_x != 0.0 {
+                    velocity.y = GROUND_HOP_FORCE;
+                    commands.entity(player_entity).remove::<Grounded>();
+                }
+            }
+
+            // Continuous thrust with W (works in air or on ground)
+            if keyboard_input.pressed(KeyCode::KeyW) {
+                velocity.y += AERIAL_VERTICAL_THRUST * time.delta_seconds();
+                if is_grounded {
+                    commands.entity(player_entity).remove::<Grounded>();
+                }
+            }
+            
+            // Fast dive with S (only in air)
+            if !is_grounded {
+                if keyboard_input.pressed(KeyCode::KeyS) {
+                    velocity.y -= AERIAL_DOWNWARD_FORCE * time.delta_seconds();
+                }
+            }
+        }
+
+        // --- Horizontal Movement ---
+        if direction_x != 0.0 {
+            velocity.x += direction_x * PLAYER_ACCELERATION * time.delta_seconds();
         }
     }
 }
 
 fn player_charge_system(
     mut commands: Commands,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mouse_button_input: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
-    mut player_query: Query<(Entity, &Transform, &mut Velocity, Option<&mut Charging>), With<Player>>,
+    mut player_query: Query<(Entity, &Transform, &mut Velocity, Option<&mut Charging>, Option<&AbilityCooldown>), With<Player>>,
     mut arrow_query: Query<(&mut Transform, &mut Visibility), (With<AimArrow>, Without<Player>)>,
     time: Res<Time>,
 ) {
-    let Ok((entity, player_transform, mut velocity, charging_opt)) = player_query.get_single_mut() else { return };
+    let Ok((entity, player_transform, mut velocity, charging_opt, cooldown_opt)) = player_query.get_single_mut() else { return };
 
     // Pega a posição do cursor no mundo do jogo
     let window = windows.single();
@@ -295,7 +345,7 @@ fn player_charge_system(
         // O jogador está carregando. Aplica atrito forte e verifica a entrada.
         velocity.0 *= (1.0 - CHARGING_FRICTION * time.delta_seconds()).max(0.0);
 
-        if keyboard_input.just_released(KeyCode::Space) {
+        if mouse_button_input.just_released(MouseButton::Left) {
             // Executa o dash ao soltar
             let dash_dir = charging.direction; // A direção já está normalizada
             velocity.0 = dash_dir * PLAYER_DASH_SPEED;
@@ -303,8 +353,9 @@ fn player_charge_system(
             commands.entity(entity).insert(Dashing {
                 timer: Timer::from_seconds(PLAYER_DASH_DURATION, TimerMode::Once),
             });
+            commands.entity(entity).insert(AbilityCooldown(Timer::from_seconds(ABILITY_COOLDOWN, TimerMode::Once)));
 
-            // Esconde a seta
+
             if let Ok((_, mut arrow_visibility)) = arrow_query.get_single_mut() {
                 *arrow_visibility = Visibility::Hidden;
             }
@@ -315,7 +366,6 @@ fn player_charge_system(
 
             if new_direction != Vec2::ZERO {
                 charging.direction = new_direction;
-                // Atualiza a transformação da seta (posição e rotação)
                 if let Ok((mut arrow_transform, _)) = arrow_query.get_single_mut() {
                     let offset = 25.0;
                     arrow_transform.translation = (charging.direction * offset).extend(2.0);
@@ -325,28 +375,44 @@ fn player_charge_system(
         }
     } else {
         // O jogador não está carregando. Verifica se deve começar a carregar.
-        if keyboard_input.just_pressed(KeyCode::Space) {
+        if mouse_button_input.just_pressed(MouseButton::Left) && cooldown_opt.is_none() {
             velocity.0 = Vec2::ZERO;
 
             // Direção inicial da mira baseada no mouse
-            let mut final_direction = Vec2::Y; // Padrão
             if let Some(cursor_pos) = cursor_pos_world {
                 let player_pos = player_transform.translation.truncate();
                 let dir_to_cursor = (cursor_pos - player_pos).normalize_or_zero();
                 if dir_to_cursor != Vec2::ZERO {
-                    final_direction = dir_to_cursor;
+                    commands.entity(entity).insert(Charging { direction: dir_to_cursor });
                 }
             }
 
-            commands.entity(entity).insert(Charging { direction: final_direction });
-
-            // Mostra e orienta a seta
             if let Ok((mut arrow_transform, mut arrow_visibility)) = arrow_query.get_single_mut() {
                 *arrow_visibility = Visibility::Visible;
                 let offset = 25.0;
-                arrow_transform.translation = (final_direction * offset).extend(2.0);
-                arrow_transform.rotation = Quat::from_rotation_z(final_direction.y.atan2(final_direction.x));
+                arrow_transform.translation = (velocity.0 * offset).extend(2.0);
+                arrow_transform.rotation = Quat::from_rotation_z(velocity.0.y.atan2(velocity.0.x));
             }
+        }
+    }
+}
+
+fn ability_cooldown_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut Sprite, Option<&mut AbilityCooldown>), With<Player>>,
+) {
+    if let Ok((entity, mut sprite, cooldown_opt)) = query.get_single_mut() {
+        if let Some(mut cooldown) = cooldown_opt {
+            // Cooldown está ativo, cor azul
+            sprite.color = Color::BLUE;
+            cooldown.0.tick(time.delta());
+            if cooldown.0.finished() {
+                commands.entity(entity).remove::<AbilityCooldown>();
+            }
+        } else {
+            // Sem cooldown, cor cinza original
+            sprite.color = Color::rgb(0.8, 0.8, 0.8);
         }
     }
 }
@@ -357,27 +423,37 @@ fn gravity_system(mut query: Query<&mut Velocity, (With<Player>, Without<Chargin
     }
 }
 
-fn floor_collision_system(mut query: Query<(&mut Transform, &mut Velocity), With<Player>>) {
-    if let Ok((mut transform, mut velocity)) = query.get_single_mut() {
+fn floor_collision_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Transform, &mut Velocity), With<Player>>
+) {
+    if let Ok((entity, mut transform, mut velocity)) = query.get_single_mut() {
         if transform.translation.y < FLOOR_Y {
             transform.translation.y = FLOOR_Y;
             velocity.y = 0.0;
+            commands.entity(entity).insert(Grounded);
         }
     }
 }
 
 fn friction_system(
-    mut query: Query<&mut Velocity, (With<Player>, Without<Dashing>, Without<Charging>)>,
+    mut query: Query<(&mut Velocity, Option<&Grounded>), (With<Player>, Without<Dashing>, Without<Charging>)>,
     time: Res<Time>
 ) {
-    if let Ok(mut velocity) = query.get_single_mut() {
-        if velocity.0 == Vec2::ZERO { return; }
-        velocity.0 *= (1.0 - FRICTION * time.delta_seconds()).max(0.0);
-        if velocity.length() > PLAYER_SPEED {
-            velocity.0 = velocity.normalize() * PLAYER_SPEED;
+    if let Ok((mut velocity, grounded_opt)) = query.get_single_mut() {
+        let friction = if grounded_opt.is_some() {
+            GROUND_FRICTION
+        } else {
+            FRICTION
+        };
+
+        // Apply friction only to horizontal velocity and clamp it
+        velocity.x *= (1.0 - friction * time.delta_seconds()).max(0.0);
+        if velocity.x.abs() > PLAYER_SPEED {
+            velocity.x = velocity.x.signum() * PLAYER_SPEED;
         }
-        if velocity.length_squared() < 1.0 {
-            velocity.0 = Vec2::ZERO;
+        if velocity.x.abs() < 1.0 {
+            velocity.x = 0.0;
         }
     }
 }
