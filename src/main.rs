@@ -12,6 +12,8 @@ const PLAYER_DASH_SPEED: f32 = 1000.0;
 const PLAYER_DASH_DURATION: f32 = 0.15;
 const FRICTION: f32 = 5.0;
 const CHARGING_FRICTION: f32 = 10.0;
+const GRAVITY: f32 = 980.0;
+const FLOOR_Y: f32 = -250.0;
 
 // --- Components ---
 
@@ -75,10 +77,12 @@ fn main() {
         ))
         .add_systems(Startup, (setup, setup_ui))
         .add_systems(Update, (
+            gravity_system,
             player_movement_system,
             player_charge_system,
             dashing_system,
             apply_velocity_system,
+            floor_collision_system,
             friction_system, // Adicionado para movimento suave
             update_hp_ui_system,
             collision_system,
@@ -162,6 +166,17 @@ fn setup(
                 ..default()
             });
         });
+
+    // Adiciona o chão
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            color: Color::rgb(0.5, 0.5, 0.5),
+            custom_size: Some(Vec2::new(800.0, 50.0)),
+            ..default()
+        },
+        transform: Transform::from_xyz(0.0, FLOOR_Y - 25.0, 0.0),
+        ..default()
+    });
 }
 
 // --- UI Systems ---
@@ -261,73 +276,92 @@ fn player_movement_system(
 fn player_charge_system(
     mut commands: Commands,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut player_query: Query<(Entity, &mut Velocity, Option<&mut Charging>), With<Player>>,
-    mut arrow_query: Query<(&mut Transform, &mut Visibility), With<AimArrow>>,
+    windows: Query<&Window>,
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    mut player_query: Query<(Entity, &Transform, &mut Velocity, Option<&mut Charging>), With<Player>>,
+    mut arrow_query: Query<(&mut Transform, &mut Visibility), (With<AimArrow>, Without<Player>)>,
     time: Res<Time>,
 ) {
-    if let Ok((entity, mut velocity, charging_opt)) = player_query.get_single_mut() {
-        if let Some(mut charging) = charging_opt {
-            // O jogador está carregando. Aplica atrito forte e verifica a entrada.
-            velocity.0 *= (1.0 - CHARGING_FRICTION * time.delta_seconds()).max(0.0);
-            if velocity.length_squared() < 0.1 {
-                velocity.0 = Vec2::ZERO;
+    let Ok((entity, player_transform, mut velocity, charging_opt)) = player_query.get_single_mut() else { return };
+
+    // Pega a posição do cursor no mundo do jogo
+    let window = windows.single();
+    let (camera, camera_transform) = camera_query.single();
+    let cursor_pos_world = window.cursor_position()
+        .and_then(|cursor| camera.viewport_to_world(camera_transform, cursor))
+        .map(|ray| ray.origin.truncate());
+
+    if let Some(mut charging) = charging_opt {
+        // O jogador está carregando. Aplica atrito forte e verifica a entrada.
+        velocity.0 *= (1.0 - CHARGING_FRICTION * time.delta_seconds()).max(0.0);
+
+        if keyboard_input.just_released(KeyCode::Space) {
+            // Executa o dash ao soltar
+            let dash_dir = charging.direction; // A direção já está normalizada
+            velocity.0 = dash_dir * PLAYER_DASH_SPEED;
+            commands.entity(entity).remove::<Charging>();
+            commands.entity(entity).insert(Dashing {
+                timer: Timer::from_seconds(PLAYER_DASH_DURATION, TimerMode::Once),
+            });
+
+            // Esconde a seta
+            if let Ok((_, mut arrow_visibility)) = arrow_query.get_single_mut() {
+                *arrow_visibility = Visibility::Hidden;
             }
+        } else if let Some(cursor_pos) = cursor_pos_world {
+            // Ainda carregando, atualiza a direção da mira com o mouse
+            let player_pos = player_transform.translation.truncate();
+            let new_direction = (cursor_pos - player_pos).normalize_or_zero();
 
-            if keyboard_input.just_released(KeyCode::Space) {
-                // Executa o dash ao soltar
-                let dash_dir = charging.direction; // A direção já está normalizada
-                velocity.0 = dash_dir * PLAYER_DASH_SPEED;
-                commands.entity(entity).remove::<Charging>();
-                commands.entity(entity).insert(Dashing {
-                    timer: Timer::from_seconds(PLAYER_DASH_DURATION, TimerMode::Once),
-                });
-
-                // Esconde a seta
-                if let Ok((_, mut arrow_visibility)) = arrow_query.get_single_mut() {
-                    *arrow_visibility = Visibility::Hidden;
-                }
-            } else {
-                // Ainda carregando, atualiza a direção da mira
-                let mut new_direction = charging.direction;
-                if keyboard_input.pressed(KeyCode::KeyW) { new_direction = Vec2::Y; }
-                if keyboard_input.pressed(KeyCode::KeyS) { new_direction = -Vec2::Y; }
-                if keyboard_input.pressed(KeyCode::KeyA) { new_direction = -Vec2::X; }
-                if keyboard_input.pressed(KeyCode::KeyD) { new_direction = Vec2::X; }
-
-                if new_direction != Vec2::ZERO {
-                    charging.direction = new_direction.normalize();
-                    // Atualiza a transformação da seta (posição e rotação)
-                    if let Ok((mut arrow_transform, _)) = arrow_query.get_single_mut() {
-                        let offset = 25.0;
-                        arrow_transform.translation = (charging.direction * offset).extend(2.0);
-                        arrow_transform.rotation = Quat::from_rotation_z(charging.direction.y.atan2(charging.direction.x));
-                    }
-                }
-            }
-        } else {
-            // O jogador não está carregando. Verifica se deve começar a carregar.
-            if keyboard_input.just_pressed(KeyCode::Space) {
-                // Para o movimento instantaneamente
-                velocity.0 = Vec2::ZERO;
-
-                // Direção inicial da mira
-                let mut direction = Vec2::Y; // Padrão
-                if keyboard_input.pressed(KeyCode::KeyW) { direction = Vec2::Y; }
-                if keyboard_input.pressed(KeyCode::KeyS) { direction = -Vec2::Y; }
-                if keyboard_input.pressed(KeyCode::KeyA) { direction = -Vec2::X; }
-                if keyboard_input.pressed(KeyCode::KeyD) { direction = Vec2::X; }
-                let final_direction = direction.normalize();
-
-                commands.entity(entity).insert(Charging { direction: final_direction });
-
-                // Mostra e orienta a seta
-                if let Ok((mut arrow_transform, mut arrow_visibility)) = arrow_query.get_single_mut() {
-                    *arrow_visibility = Visibility::Visible;
+            if new_direction != Vec2::ZERO {
+                charging.direction = new_direction;
+                // Atualiza a transformação da seta (posição e rotação)
+                if let Ok((mut arrow_transform, _)) = arrow_query.get_single_mut() {
                     let offset = 25.0;
-                    arrow_transform.translation = (final_direction * offset).extend(2.0);
-                    arrow_transform.rotation = Quat::from_rotation_z(final_direction.y.atan2(final_direction.x));
+                    arrow_transform.translation = (charging.direction * offset).extend(2.0);
+                    arrow_transform.rotation = Quat::from_rotation_z(charging.direction.y.atan2(charging.direction.x));
                 }
             }
+        }
+    } else {
+        // O jogador não está carregando. Verifica se deve começar a carregar.
+        if keyboard_input.just_pressed(KeyCode::Space) {
+            velocity.0 = Vec2::ZERO;
+
+            // Direção inicial da mira baseada no mouse
+            let mut final_direction = Vec2::Y; // Padrão
+            if let Some(cursor_pos) = cursor_pos_world {
+                let player_pos = player_transform.translation.truncate();
+                let dir_to_cursor = (cursor_pos - player_pos).normalize_or_zero();
+                if dir_to_cursor != Vec2::ZERO {
+                    final_direction = dir_to_cursor;
+                }
+            }
+
+            commands.entity(entity).insert(Charging { direction: final_direction });
+
+            // Mostra e orienta a seta
+            if let Ok((mut arrow_transform, mut arrow_visibility)) = arrow_query.get_single_mut() {
+                *arrow_visibility = Visibility::Visible;
+                let offset = 25.0;
+                arrow_transform.translation = (final_direction * offset).extend(2.0);
+                arrow_transform.rotation = Quat::from_rotation_z(final_direction.y.atan2(final_direction.x));
+            }
+        }
+    }
+}
+
+fn gravity_system(mut query: Query<&mut Velocity, (With<Player>, Without<Charging>)>, time: Res<Time>) {
+    if let Ok(mut velocity) = query.get_single_mut() {
+        velocity.y -= GRAVITY * time.delta_seconds();
+    }
+}
+
+fn floor_collision_system(mut query: Query<(&mut Transform, &mut Velocity), With<Player>>) {
+    if let Ok((mut transform, mut velocity)) = query.get_single_mut() {
+        if transform.translation.y < FLOOR_Y {
+            transform.translation.y = FLOOR_Y;
+            velocity.y = 0.0;
         }
     }
 }
