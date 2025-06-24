@@ -26,8 +26,15 @@ fn main() {
             DefaultPlugins
                 .set(WindowPlugin {
                     primary_window: Some(Window {
-                        resolution: (800.0, 600.0).into(),
+                        resolution: (1920.0, 1080.0).into(),
                         title: "Pombo Hacker".into(),
+                        resizable: true,
+                        resize_constraints: WindowResizeConstraints {
+                            min_width: 640.0,
+                            min_height: 360.0,
+                            max_width: 3840.0,
+                            max_height: 2160.0,
+                        },
                         ..default()
                     }),
                     ..default()
@@ -41,7 +48,6 @@ fn main() {
                     ..default()
                 }),
         ))
-        .add_systems(Startup, setup_camera)
         .add_plugins((
             PlayerPlugin,
             EnemyPlugin,
@@ -50,8 +56,4 @@ fn main() {
             WorldPlugin,
         ))
         .run();
-}
-
-fn setup_camera(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
 }

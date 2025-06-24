@@ -23,7 +23,13 @@ fn spawn_player(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    camera_query: Query<Entity, With<Camera2d>>,
 ) {
+    // Remove câmeras existentes para garantir só uma
+    for cam in camera_query.iter() {
+        commands.entity(cam).despawn_recursive();
+    }
+
     // Create a triangle mesh for the aim arrow
     let mut arrow_mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
@@ -130,15 +136,21 @@ fn player_charge_system(
     mut commands: Commands,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
-    camera_query: Query<(&Camera, &GlobalTransform)>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     mut player_query: Query<(Entity, &Transform, &mut Velocity, Option<&mut Charging>, Option<&AbilityCooldown>, Option<&Grounded>), With<Player>>,
     mut arrow_query: Query<(&mut Transform, &mut Visibility), (With<AimArrow>, Without<Player>)>,
     time: Res<Time>,
 ) {
     let Ok((entity, player_transform, mut velocity, charging_opt, cooldown_opt, grounded_opt)) = player_query.get_single_mut() else { return };
 
-    let window = windows.single();
-    let (camera, camera_transform) = camera_query.single();
+    let window = match windows.iter().next() {
+        Some(w) => w,
+        None => return,
+    };
+    let (camera, camera_transform) = match camera_query.iter().next() {
+        Some(pair) => pair,
+        None => return,
+    };
     let cursor_pos_world = window.cursor_position()
         .and_then(|cursor| camera.viewport_to_world(camera_transform, cursor))
         .map(|ray| ray.origin.truncate());

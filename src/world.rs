@@ -36,12 +36,24 @@ pub struct LandingAudioDebug {
     pub last_is_hop: bool,
 }
 
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub enum WorldStartupSet {
+    Floor,
+    Camera,
+}
+
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ScreenShake>()
             .init_resource::<LandingAudioDebug>()
             .add_event::<PlayerLandedEvent>()
-            .add_systems(Startup, spawn_floor)
+            .configure_sets(Startup, (
+                WorldStartupSet::Floor.before(WorldStartupSet::Camera),
+            ))
+            .add_systems(Startup, (
+                spawn_floor.in_set(WorldStartupSet::Floor),
+                setup_camera.in_set(WorldStartupSet::Camera),
+            ))
             .add_systems(
                 Update,
                 (
@@ -53,8 +65,38 @@ impl Plugin for WorldPlugin {
                     friction_system,
                     screen_shake_system,
                     audio_cut_system,
+                    camera_follow_system,
                 ),
             );
+    }
+}
+
+fn setup_camera(mut commands: Commands, player_query: Query<&Transform, With<Player>>) {
+    let player_pos = player_query.get_single().map(|t| t.translation).unwrap_or(Vec3::ZERO);
+    commands.spawn(Camera2dBundle {
+        transform: Transform::from_translation(Vec3::new(player_pos.x, player_pos.y, 999.0)),
+        projection: OrthographicProjection {
+            area: Rect {
+                min: Vec2::new(-960.0, -540.0),
+                max: Vec2::new(960.0, 540.0),
+            },
+            ..default()
+        },
+        ..default()
+    });
+}
+
+fn camera_follow_system(
+    player_query: Query<&Transform, With<Player>>,
+    mut camera_query: Query<&mut Transform, (With<Camera2d>, Without<Player>)>,
+) {
+    if let (Ok(player_transform), Ok(mut camera_transform)) = (player_query.get_single(), camera_query.get_single_mut()) {
+        // Suaviza o movimento da câmera
+        let target = player_transform.translation;
+        let cam_pos = &mut camera_transform.translation;
+        let lerp = 0.15;
+        cam_pos.x += (target.x - cam_pos.x) * lerp;
+        cam_pos.y += (target.y - cam_pos.y) * lerp;
     }
 }
 
@@ -62,7 +104,7 @@ fn spawn_floor(mut commands: Commands) {
     commands.spawn(SpriteBundle {
         sprite: Sprite {
             color: Color::rgb(0.5, 0.5, 0.5),
-            custom_size: Some(Vec2::new(800.0, 50.0)),
+            custom_size: Some(Vec2::new(4000.0, 50.0)), // chão muito maior
             ..default()
         },
         transform: Transform::from_xyz(0.0, FLOOR_Y - 25.0, 0.0),
