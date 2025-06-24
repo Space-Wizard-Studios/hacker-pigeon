@@ -31,8 +31,10 @@ A movimentação do pombo é dividida entre estados: no chão e no ar.
 - Use `A` e `D` para controlar o movimento horizontal.
 - Segure `S` para um mergulho rápido para baixo.
 
-**Habilidades Especiais:**
+**Habilidades:**
 
+- Use `Espaço` para um **impulso** vertical rápido.
+- Segure o botão do mouse para mirar e solte para realizar um **dash** rápido para a direção do cursor.
 - O **impulso** (`Espaço`) e o **dash** (`Mouse`) compartilham um tempo de recarga, mas o impulso recarrega um pouco mais rápido.
 
 ![alt text](movimento.png)
