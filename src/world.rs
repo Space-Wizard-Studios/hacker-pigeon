@@ -5,6 +5,12 @@ use rand::Rng;
 use crate::components::*;
 use crate::constants::*;
 
+// Evento para comunicar aterrissagem do player
+#[derive(Event)]
+pub struct PlayerLandedEvent {
+    pub impact_velocity: f32,
+}
+
 pub struct WorldPlugin;
 
 #[derive(Resource)]
@@ -25,6 +31,7 @@ impl Default for ScreenShake {
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ScreenShake>()
+            .add_event::<PlayerLandedEvent>()
             .add_systems(Startup, spawn_floor)
             .add_systems(
                 Update,
@@ -32,11 +39,12 @@ impl Plugin for WorldPlugin {
                     apply_velocity_system,
                     gravity_system,
                     floor_collision_system,
+                    player_landing_audio_system,
+                    player_landing_shake_system,
                     friction_system,
                     screen_shake_system,
-                    audio_cut_system, // registra o sistema de corte de áudio
-                )
-                    .chain(),
+                    audio_cut_system,
+                ),
             );
     }
 }
@@ -74,71 +82,81 @@ fn gravity_system(
 fn floor_collision_system(
     mut commands: Commands,
     mut query: Query<(Entity, &mut Transform, &mut Velocity, Option<&Grounded>), With<Player>>,
-    mut screen_shake: ResMut<ScreenShake>,
-    asset_server: Res<AssetServer>,
+    mut landed_writer: EventWriter<PlayerLandedEvent>,
 ) {
     if let Ok((entity, mut transform, mut velocity, grounded_opt)) = query.get_single_mut() {
         if transform.translation.y < FLOOR_Y {
             let impact_velocity = velocity.y.abs();
-
-            // Só dispara som/tremor se NÃO estava grounded
-            if grounded_opt.is_none() && impact_velocity > 10.0 {
-                // --- Screen Shake ---
-                let shake_intensity =
-                    (impact_velocity / VELOCITY_FOR_MAX_SHAKE) * MAX_SHAKE_INTENSITY;
-                screen_shake.intensity = shake_intensity.clamp(0.0, MAX_SHAKE_INTENSITY);
-                screen_shake.timer.reset();
-
-                // --- Sound Effect ---
-                let sound = asset_server.load("lilmati_retro-explosion-04.wav");
-
-                // HOP: impacto leve
-                if impact_velocity < HOP_VELOCITY * 1.2 {
-                    // Pitch bem alto, volume bem baixo, áudio cortado
-                    let hop_playback_rate = MAX_PLAYBACK_RATE * 1.5; // ainda mais agudo
-                    let hop_volume = 0.01;
-                    let hop_duration = 0.06; // mais rápido/seco
-                    let audio_entity = commands.spawn(AudioBundle {
-                        source: sound.clone(),
-                        settings: PlaybackSettings {
-                            mode: PlaybackMode::Once,
-                            volume: Volume::new(hop_volume),
-                            speed: hop_playback_rate,
-                            ..default()
-                        },
-                    }).id();
-                    // Despawning do áudio após o tempo curto
-                    commands.spawn((
-                        AudioCutTimer {
-                            timer: Timer::from_seconds(hop_duration, TimerMode::Once),
-                            audio_entity,
-                        },
-                    ));
-                } else {
-                    // Queda normal/forte: áudio padrão
-                    let volume_scale = (impact_velocity / VELOCITY_FOR_MAX_VOLUME).clamp(0.05, 1.0);
-                    let t = ((impact_velocity - HOP_VELOCITY)
-                        / (MAX_VELOCITY_FOR_SPEED_SCALING - HOP_VELOCITY))
-                        .clamp(0.0, 1.0);
-                    let playback_rate = MAX_PLAYBACK_RATE + t * (MIN_PLAYBACK_RATE - MAX_PLAYBACK_RATE);
-                    commands.spawn(AudioBundle {
-                        source: sound,
-                        settings: PlaybackSettings {
-                            mode: PlaybackMode::Once,
-                            volume: Volume::new(volume_scale),
-                            speed: playback_rate,
-                            ..default()
-                        },
-                    });
-                }
+            if grounded_opt.is_none() {
+                landed_writer.send(PlayerLandedEvent { impact_velocity });
             }
-
-            // Sempre corrige a posição e velocidade
             transform.translation.y = FLOOR_Y;
             velocity.y = 0.0;
-            // Sempre garante que está grounded
             commands.entity(entity).insert(Grounded);
         }
+    }
+}
+
+fn player_landing_audio_system(
+    mut commands: Commands,
+    mut events: EventReader<PlayerLandedEvent>,
+    asset_server: Res<AssetServer>,
+) {
+    for event in events.read() {
+        let impact_velocity = event.impact_velocity;
+        let sound = asset_server.load("lilmati_retro-explosion-04.wav");
+        if impact_velocity < HOP_VELOCITY * 1.2 {
+            let hop_playback_rate = MAX_PLAYBACK_RATE * 1.5;
+            let hop_volume = 0.01;
+            let hop_duration = 0.06;
+            let audio_entity = commands.spawn(AudioBundle {
+                source: sound.clone(),
+                settings: PlaybackSettings {
+                    mode: PlaybackMode::Once,
+                    volume: Volume::new(hop_volume),
+                    speed: hop_playback_rate,
+                    ..default()
+                },
+            }).id();
+            commands.spawn((
+                AudioCutTimer {
+                    timer: Timer::from_seconds(hop_duration, TimerMode::Once),
+                    audio_entity,
+                },
+            ));
+        } else {
+            let volume_scale = (impact_velocity / VELOCITY_FOR_MAX_VOLUME).clamp(0.05, 0.5);
+            let t = ((impact_velocity - HOP_VELOCITY)
+                / (MAX_VELOCITY_FOR_SPEED_SCALING - HOP_VELOCITY))
+                .clamp(0.0, 1.0);
+            let playback_rate = MAX_PLAYBACK_RATE + t * (MIN_PLAYBACK_RATE - MAX_PLAYBACK_RATE);
+            commands.spawn(AudioBundle {
+                source: sound,
+                settings: PlaybackSettings {
+                    mode: PlaybackMode::Once,
+                    volume: Volume::new(volume_scale),
+                    speed: playback_rate,
+                    ..default()
+                },
+            });
+        }
+    }
+}
+
+fn player_landing_shake_system(
+    mut events: EventReader<PlayerLandedEvent>,
+    mut screen_shake: ResMut<ScreenShake>,
+) {
+    for event in events.read() {
+        let impact_velocity = event.impact_velocity;
+        let shake_intensity =
+            (impact_velocity / VELOCITY_FOR_MAX_SHAKE) * MAX_SHAKE_INTENSITY;
+        screen_shake.intensity = shake_intensity.clamp(0.0, MAX_SHAKE_INTENSITY);
+        // Duração do shake proporcional à velocidade
+        let t = (impact_velocity / VELOCITY_FOR_MAX_SHAKE).clamp(0.0, 1.0);
+        let shake_duration = MIN_SHAKE_DURATION + t * (MAX_SHAKE_DURATION - MIN_SHAKE_DURATION);
+        screen_shake.timer = Timer::from_seconds(shake_duration, TimerMode::Once);
+        screen_shake.timer.reset();
     }
 }
 

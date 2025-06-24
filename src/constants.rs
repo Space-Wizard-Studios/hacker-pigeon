@@ -42,16 +42,20 @@ pub const ABILITY_COOLDOWN: f32 = 1.0;
 
 // --- COLISÃO, TREMOR E ÁUDIO ---
 /// Intensidade máxima do tremor de tela ao colidir com o chão.
-pub const MAX_SHAKE_INTENSITY: f32 = 8.0;
+pub const MAX_SHAKE_INTENSITY: f32 = 10.0;
 /// Velocidade de impacto para atingir o tremor máximo.
-pub const VELOCITY_FOR_MAX_SHAKE: f32 = 1200.0;
+pub const VELOCITY_FOR_MAX_SHAKE: f32 = 1500.0;
 /// Velocidade de impacto para atingir o volume máximo do áudio.
-pub const VELOCITY_FOR_MAX_VOLUME: f32 = 1000.0;
+pub const VELOCITY_FOR_MAX_VOLUME: f32 = 1500.0;
 /// Velocidade mínima para considerar um salto (hop) no impacto.
 pub const HOP_VELOCITY: f32 = 250.0;
 /// Velocidade máxima para escalonamento do pitch do áudio.
 pub const MAX_VELOCITY_FOR_SPEED_SCALING: f32 = 1000.0;
 /// Pitch mínimo do áudio (mais grave/lento).
-pub const MIN_PLAYBACK_RATE: f32 = 1.0;
+pub const MIN_PLAYBACK_RATE: f32 = 0.8;
 /// Pitch máximo do áudio (mais agudo/rápido).
-pub const MAX_PLAYBACK_RATE: f32 = 4.0;
+pub const MAX_PLAYBACK_RATE: f32 = 1.5;
+/// Duração máxima do tremor de tela ao colidir com o chão (em segundos).
+pub const MAX_SHAKE_DURATION: f32 = 1.5;
+/// Duração mínima do tremor de tela ao colidir com o chão (em segundos).
+pub const MIN_SHAKE_DURATION: f32 = 0.1;
