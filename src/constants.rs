@@ -59,3 +59,5 @@ pub const MAX_PLAYBACK_RATE: f32 = 1.5;
 pub const MAX_SHAKE_DURATION: f32 = 1.5;
 /// Duração mínima do tremor de tela ao colidir com o chão (em segundos).
 pub const MIN_SHAKE_DURATION: f32 = 0.1;
+/// Velocidade vertical mínima para disparar áudio de impacto ao colidir com o chão.
+pub const IMPACT_AUDIO_MIN_VELOCITY: f32 = 60.0;

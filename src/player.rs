@@ -84,7 +84,7 @@ fn player_movement_system(
         if is_grounded {
             // Hopping movement for A/D.
             if direction_x != 0.0 {
-                velocity.y = GROUND_HOP_FORCE;
+                velocity.y = GROUND_HOP_FORCE.max(IMPACT_AUDIO_MIN_VELOCITY + 1.0); // sempre força suficiente para "descolar"
                 commands.entity(player_entity).remove::<Grounded>();
             }
         }
@@ -131,11 +131,11 @@ fn player_charge_system(
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
-    mut player_query: Query<(Entity, &Transform, &mut Velocity, Option<&mut Charging>, Option<&AbilityCooldown>), With<Player>>,
+    mut player_query: Query<(Entity, &Transform, &mut Velocity, Option<&mut Charging>, Option<&AbilityCooldown>, Option<&Grounded>), With<Player>>,
     mut arrow_query: Query<(&mut Transform, &mut Visibility), (With<AimArrow>, Without<Player>)>,
     time: Res<Time>,
 ) {
-    let Ok((entity, player_transform, mut velocity, charging_opt, cooldown_opt)) = player_query.get_single_mut() else { return };
+    let Ok((entity, player_transform, mut velocity, charging_opt, cooldown_opt, grounded_opt)) = player_query.get_single_mut() else { return };
 
     let window = windows.single();
     let (camera, camera_transform) = camera_query.single();
@@ -149,6 +149,10 @@ fn player_charge_system(
         if mouse_button_input.just_released(MouseButton::Left) {
             let dash_dir = charging.direction;
             velocity.0 = dash_dir * PLAYER_DASH_SPEED;
+            // Se dash tem componente vertical relevante, remove Grounded
+            if grounded_opt.is_some() && dash_dir.y.abs() > 0.2 {
+                commands.entity(entity).remove::<Grounded>();
+            }
             commands.entity(entity).remove::<Charging>();
             commands.entity(entity).insert(Dashing {
                 timer: Timer::from_seconds(PLAYER_DASH_DURATION, TimerMode::Once),
@@ -186,8 +190,9 @@ fn player_charge_system(
             if let Ok((mut arrow_transform, mut arrow_visibility)) = arrow_query.get_single_mut() {
                 *arrow_visibility = Visibility::Visible;
                 let offset = 25.0;
-                arrow_transform.translation = (velocity.0 * offset).extend(2.0);
-                arrow_transform.rotation = Quat::from_rotation_z(velocity.0.y.atan2(velocity.0.x));
+                let initial_direction = (cursor_pos_world.unwrap_or_default() - player_transform.translation.truncate()).normalize_or_zero();
+                arrow_transform.translation = (initial_direction * offset).extend(2.0);
+                arrow_transform.rotation = Quat::from_rotation_z(initial_direction.y.atan2(initial_direction.x));
             }
         }
     }

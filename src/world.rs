@@ -28,9 +28,18 @@ impl Default for ScreenShake {
     }
 }
 
+#[derive(Resource, Default)]
+pub struct LandingAudioDebug {
+    pub last_impact_velocity: f32,
+    pub last_volume: f32,
+    pub last_playback_rate: f32,
+    pub last_is_hop: bool,
+}
+
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ScreenShake>()
+            .init_resource::<LandingAudioDebug>()
             .add_event::<PlayerLandedEvent>()
             .add_systems(Startup, spawn_floor)
             .add_systems(
@@ -87,7 +96,8 @@ fn floor_collision_system(
     if let Ok((entity, mut transform, mut velocity, grounded_opt)) = query.get_single_mut() {
         if transform.translation.y < FLOOR_Y {
             let impact_velocity = velocity.y.abs();
-            if grounded_opt.is_none() {
+            // Só dispara evento se estava no ar E a velocidade vertical for suficiente
+            if grounded_opt.is_none() && impact_velocity > IMPACT_AUDIO_MIN_VELOCITY {
                 landed_writer.send(PlayerLandedEvent { impact_velocity });
             }
             transform.translation.y = FLOOR_Y;
@@ -101,6 +111,7 @@ fn player_landing_audio_system(
     mut commands: Commands,
     mut events: EventReader<PlayerLandedEvent>,
     asset_server: Res<AssetServer>,
+    mut debug: ResMut<LandingAudioDebug>,
 ) {
     for event in events.read() {
         let impact_velocity = event.impact_velocity;
@@ -109,6 +120,10 @@ fn player_landing_audio_system(
             let hop_playback_rate = MAX_PLAYBACK_RATE * 1.5;
             let hop_volume = 0.01;
             let hop_duration = 0.06;
+            debug.last_impact_velocity = impact_velocity;
+            debug.last_volume = hop_volume;
+            debug.last_playback_rate = hop_playback_rate;
+            debug.last_is_hop = true;
             let audio_entity = commands.spawn(AudioBundle {
                 source: sound.clone(),
                 settings: PlaybackSettings {
@@ -130,6 +145,10 @@ fn player_landing_audio_system(
                 / (MAX_VELOCITY_FOR_SPEED_SCALING - HOP_VELOCITY))
                 .clamp(0.0, 1.0);
             let playback_rate = MAX_PLAYBACK_RATE + t * (MIN_PLAYBACK_RATE - MAX_PLAYBACK_RATE);
+            debug.last_impact_velocity = impact_velocity;
+            debug.last_volume = volume_scale;
+            debug.last_playback_rate = playback_rate;
+            debug.last_is_hop = false;
             commands.spawn(AudioBundle {
                 source: sound,
                 settings: PlaybackSettings {
