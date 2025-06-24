@@ -1,4 +1,4 @@
-use bevy::prelude::{Color, *};
+use bevy::prelude::Color;
 
 // --- MOVIMENTO DO PLAYER ---
 /// Aceleração horizontal do jogador ao se mover para os lados.

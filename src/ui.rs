@@ -126,7 +126,7 @@ fn update_debug_ui_system(
                 String::new()
             };
             text.sections[0].value = format!(
-                "CD: {:.2}\nPos: {:.1}, {:.1}\nSpeed: {:.1}, {:.1}\nFric: {:.1}\nDash Angle: {:.1}\nState: {}{}{}{}{}",
+                "CD: {:.2}\nPos: {:.1}, {:.1}\nSpeed: {:.1}, {:.1}\nFriction {:.1}\nDash Angle: {:.1}\nState: {}{}{}{}{}",
                 cd,
                 pos.x, pos.y,
                 vel.x, vel.y,

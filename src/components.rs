@@ -73,5 +73,5 @@ pub struct DroneCollisionDebug {
 pub struct CollisionImmunity {
     pub timer: Timer,
     pub blink: bool,
-    pub original_color: Option<Color>, // Salva a cor original
+    pub original_color: Option<Color>,
 }

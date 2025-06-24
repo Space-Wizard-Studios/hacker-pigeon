@@ -126,11 +126,6 @@ fn drone_player_collision_system(
 
     // Get player velocity for impact calculation
     let mut player_query = param_set.p0();
-    let player_velocity_vec = if let Ok((_, _, player_velocity, _, _, _)) = player_query.get_single_mut() {
-        player_velocity.0
-    } else {
-        Vec2::ZERO
-    };
     drop(player_query);
 
     for (drone_entity, drone_transform, mut drone, mut drone_velocity, drone_immunity) in param_set.p1().iter_mut() {
