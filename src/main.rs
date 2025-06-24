@@ -111,13 +111,8 @@ fn spawn_player(
         Player,
         Transform::from_translation(Vec3::ZERO),
         Sprite {
-            color: Color::srgb_u8(0, 120, 255),
-            custom_size: Some(Vec2::new(1., 1.)),
-            ..default()
-        },
-        Sprite {
             image: images.hacker_pigeon.clone(),
-            custom_size: Some(Vec2::new(0.3, 0.1)),
+            custom_size: Some(Vec2::new(1.0, 1.0)),
             ..default()
         },
     ));
