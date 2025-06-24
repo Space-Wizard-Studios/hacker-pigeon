@@ -1,3 +1,5 @@
+use bevy::prelude::{Color, *};
+
 // --- MOVIMENTO DO PLAYER ---
 /// Aceleração horizontal do jogador ao se mover para os lados.
 pub const PLAYER_ACCELERATION: f32 = 1000.0;
@@ -61,3 +63,25 @@ pub const MAX_SHAKE_DURATION: f32 = 1.5;
 pub const MIN_SHAKE_DURATION: f32 = 0.1;
 /// Velocidade vertical mínima para disparar áudio de impacto ao colidir com o chão.
 pub const IMPACT_AUDIO_MIN_VELOCITY: f32 = 60.0;
+
+// --- DRONE ENEMY ---
+/// Vida máxima do drone inimigo.
+pub const DRONE_HP: u8 = 3;
+/// Intervalo mínimo (segundos) entre spawns de drones.
+pub const DRONE_SPAWN_INTERVAL: f32 = 2.5;
+/// Velocidade de hover do drone (amplitude do movimento vertical).
+pub const DRONE_HOVER_AMPLITUDE: f32 = 200.0;
+/// Frequência do hover (oscilações por segundo).
+pub const DRONE_HOVER_FREQUENCY: f32 = 3.0;
+/// Dano causado ao drone ao ser atingido no ponto fraco por dash.
+pub const DRONE_WEAKPOINT_DASH_DAMAGE: i32 = 3;
+/// Força de repulsão aplicada em colisão normal.
+pub const DRONE_REPULSION_FORCE: f32 = 350.0;
+/// Dano causado ao player em colisão normal com drone.
+pub const DRONE_COLLISION_DAMAGE: i32 = 1;
+
+// --- IMUNIDADE E COR DO BLINK ---
+/// Duração em segundos da imunidade após uma colisão.
+pub const COLLISION_IMMUNITY_DURATION: f32 = 0.7;
+/// Cor do blink durante a imunidade.
+pub const COLLISION_IMMUNITY_BLINK_COLOR: Color = Color::rgb(1.0, 1.0, 1.0);

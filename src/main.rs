@@ -19,9 +19,11 @@ use enemy::EnemyPlugin;
 use player::PlayerPlugin;
 use ui::UiPlugin;
 use world::WorldPlugin;
+use crate::components::DroneCollisionDebug;
 
 fn main() {
     App::new()
+        .insert_resource(DroneCollisionDebug::default())
         .add_plugins((
             DefaultPlugins
                 .set(WindowPlugin {

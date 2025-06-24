@@ -136,15 +136,26 @@ fn floor_collision_system(
     mut landed_writer: EventWriter<PlayerLandedEvent>,
 ) {
     if let Ok((entity, mut transform, mut velocity, grounded_opt)) = query.get_single_mut() {
-        if transform.translation.y < FLOOR_Y {
-            let impact_velocity = velocity.y.abs();
+        let was_grounded = grounded_opt.is_some();
+        let is_below_floor = transform.translation.y < FLOOR_Y;
+        if is_below_floor {
             // Só dispara evento se estava no ar E a velocidade vertical for suficiente
-            if grounded_opt.is_none() && impact_velocity > IMPACT_AUDIO_MIN_VELOCITY {
+            let impact_velocity = velocity.y.abs();
+            if !was_grounded && impact_velocity > IMPACT_AUDIO_MIN_VELOCITY {
                 landed_writer.send(PlayerLandedEvent { impact_velocity });
             }
-            transform.translation.y = FLOOR_Y;
-            velocity.y = 0.0;
-            commands.entity(entity).insert(Grounded);
+            // Corrige a posição e zera a velocidade vertical só se não estava grounded
+            if !was_grounded {
+                transform.translation.y = FLOOR_Y;
+                velocity.y = 0.0;
+                commands.entity(entity).insert(Grounded);
+            } else {
+                // Se já estava grounded, só corrige a posição
+                transform.translation.y = FLOOR_Y;
+            }
+        } else if was_grounded && transform.translation.y > FLOOR_Y + 1.0 {
+            // Remove Grounded se saiu do chão
+            commands.entity(entity).remove::<Grounded>();
         }
     }
 }

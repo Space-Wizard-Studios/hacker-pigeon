@@ -69,11 +69,14 @@ fn update_debug_ui_system(
         Option<&AbilityCooldown>,
         Option<&Charging>,
         Option<&Grounded>,
+        Option<&CollisionImmunity>,
     ), With<Player>>,
     mut text_query: Query<&mut Text, With<DebugText>>,
     landing_audio_debug: Res<crate::world::LandingAudioDebug>,
+    drone_debug: Res<crate::components::DroneCollisionDebug>,
+    drone_query: Query<Option<&CollisionImmunity>, With<crate::components::Drone>>,
 ) {
-    if let Ok((transform, velocity, cooldown_opt, charging_opt, grounded_opt)) = player_query.get_single() {
+    if let Ok((transform, velocity, cooldown_opt, charging_opt, grounded_opt, player_immunity)) = player_query.get_single() {
         if let Ok(mut text) = text_query.get_single_mut() {
             let cd = cooldown_opt.map_or(0.0, |cd| cd.0.remaining_secs());
             let pos = transform.translation;
@@ -99,15 +102,41 @@ fn update_debug_ui_system(
             } else {
                 String::new()
             };
+            let drone_dbg = &*drone_debug;
+            let drone_str = if !drone_dbg.last_event.is_empty() {
+                format!(
+                    "\n[Drone Debug]\n{}\nPlayer HP: {}\nDrone HP: {:?}",
+                    drone_dbg.last_event,
+                    drone_dbg.last_player_hp,
+                    drone_dbg.last_drone_hp
+                )
+            } else {
+                String::new()
+            };
+            // Imunidade do player
+            let player_imm_str = if let Some(im) = player_immunity {
+                format!("\nPlayer Imune: {:.2}s", im.timer.remaining_secs())
+            } else {
+                String::new()
+            };
+            // Imunidade de um drone (mostra o primeiro encontrado)
+            let drone_imm_str = if let Some(Some(im)) = drone_query.iter().find(|imm| imm.is_some()) {
+                format!("\nDrone Imune: {:.2}s", im.timer.remaining_secs())
+            } else {
+                String::new()
+            };
             text.sections[0].value = format!(
-                "CD: {:.2}\nPos: {:.1}, {:.1}\nSpeed: {:.1}, {:.1}\nFric: {:.1}\nDash Angle: {:.1}\nState: {}{}",
+                "CD: {:.2}\nPos: {:.1}, {:.1}\nSpeed: {:.1}, {:.1}\nFric: {:.1}\nDash Angle: {:.1}\nState: {}{}{}{}{}",
                 cd,
                 pos.x, pos.y,
                 vel.x, vel.y,
                 friction,
                 charge_angle,
                 state,
-                audio_str
+                audio_str,
+                drone_str,
+                player_imm_str,
+                drone_imm_str
             );
         }
     }
