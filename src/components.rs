@@ -33,6 +33,11 @@ pub struct Charging {
     pub direction: Vec2,
 }
 
+#[derive(Component)]
+pub struct HopDebounce {
+    pub timer: Timer,
+}
+
 // --- Enemy Components ---
 #[derive(Component)]
 pub struct Drone {

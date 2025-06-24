@@ -7,13 +7,13 @@ use crate::constants::*;
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_player)
+    fn build(&self, app: &mut App) {        app.add_systems(Startup, spawn_player)
             .add_systems(Update, (
                 player_movement_system,
                 player_charge_system,
                 dashing_system,
                 ability_cooldown_system,
+                hop_debounce_system,
             ));
     }
 }
@@ -74,24 +74,28 @@ fn spawn_player(
 fn player_movement_system(
     mut commands: Commands,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(Entity, &mut Velocity, Option<&Grounded>, Option<&AbilityCooldown>), (With<Player>, Without<Dashing>, Without<Charging>)>,
+    mut query: Query<(Entity, &mut Velocity, Option<&Grounded>, Option<&AbilityCooldown>, Option<&HopDebounce>), (With<Player>, Without<Dashing>, Without<Charging>)>,
     time: Res<Time>
 ) {
-    if let Ok((player_entity, mut velocity, grounded_opt, cooldown_opt)) = query.get_single_mut() {
+    if let Ok((player_entity, mut velocity, grounded_opt, cooldown_opt, hop_debounce_opt)) = query.get_single_mut() {
         let mut direction_x = 0.0;
         if keyboard_input.pressed(KeyCode::KeyA) { direction_x -= 1.0; }
         if keyboard_input.pressed(KeyCode::KeyD) { direction_x += 1.0; }
 
         let is_grounded = grounded_opt.is_some();
+        let can_hop = hop_debounce_opt.is_none();
 
         // --- Vertical Movement ---
 
         // 1. Grounded-Specific Actions
-        if is_grounded {
+        if is_grounded && can_hop {
             // Hopping movement for A/D.
             if direction_x != 0.0 {
-                velocity.y = GROUND_HOP_FORCE.max(IMPACT_AUDIO_MIN_VELOCITY + 1.0); // sempre força suficiente para "descolar"
+                velocity.y = GROUND_HOP_FORCE;
                 commands.entity(player_entity).remove::<Grounded>();
+                commands.entity(player_entity).insert(HopDebounce {
+                    timer: Timer::from_seconds(0.1, TimerMode::Once),
+                });
             }
         }
 
@@ -237,6 +241,19 @@ fn dashing_system(
         dashing.timer.tick(time.delta());
         if dashing.timer.finished() {
             commands.entity(entity).remove::<Dashing>();
+        }
+    }
+}
+
+fn hop_debounce_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut HopDebounce)>
+) {
+    for (entity, mut hop_debounce) in query.iter_mut() {
+        hop_debounce.timer.tick(time.delta());
+        if hop_debounce.timer.finished() {
+            commands.entity(entity).remove::<HopDebounce>();
         }
     }
 }

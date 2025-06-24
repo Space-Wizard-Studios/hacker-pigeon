@@ -12,7 +12,7 @@ pub const PLAYER_DASH_DURATION: f32 = 0.15;
 /// Força do impulso vertical (burst) ativado com a barra de espaço.
 pub const BURST_FORCE: f32 = 500.0;
 /// Força do pequeno salto (hop) ao se mover no chão.
-pub const GROUND_HOP_FORCE: f32 = 100.0;
+pub const GROUND_HOP_FORCE: f32 = 200.0;
 /// Força contínua para cima (bater de asas) ao segurar a tecla W.
 pub const AERIAL_VERTICAL_THRUST: f32 = 1200.0;
 /// Velocidade vertical máxima atingível através do impulso contínuo (W).

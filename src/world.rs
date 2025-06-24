@@ -53,20 +53,19 @@ impl Plugin for WorldPlugin {
             .add_systems(Startup, (
                 spawn_floor.in_set(WorldStartupSet::Floor),
                 setup_camera.in_set(WorldStartupSet::Camera),
-            ))
-            .add_systems(
+            ))            .add_systems(
                 Update,
                 (
-                    apply_velocity_system,
                     gravity_system,
+                    friction_system,
+                    apply_velocity_system,
                     floor_collision_system,
                     player_landing_audio_system,
                     player_landing_shake_system,
-                    friction_system,
                     screen_shake_system,
                     audio_cut_system,
                     camera_follow_system,
-                ),
+                ).chain(),
             );
     }
 }
@@ -137,24 +136,25 @@ fn floor_collision_system(
 ) {
     if let Ok((entity, mut transform, mut velocity, grounded_opt)) = query.get_single_mut() {
         let was_grounded = grounded_opt.is_some();
-        let is_below_floor = transform.translation.y < FLOOR_Y;
-        if is_below_floor {
+        let is_at_or_below_floor = transform.translation.y <= FLOOR_Y;
+        let is_moving_down = velocity.y <= 0.0;
+        
+        if is_at_or_below_floor && is_moving_down {
             // Só dispara evento se estava no ar E a velocidade vertical for suficiente
             let impact_velocity = velocity.y.abs();
             if !was_grounded && impact_velocity > IMPACT_AUDIO_MIN_VELOCITY {
                 landed_writer.send(PlayerLandedEvent { impact_velocity });
             }
-            // Corrige a posição e zera a velocidade vertical só se não estava grounded
+            
+            // Corrige a posição e zera a velocidade vertical
+            transform.translation.y = FLOOR_Y;
+            velocity.y = 0.0;
+            
             if !was_grounded {
-                transform.translation.y = FLOOR_Y;
-                velocity.y = 0.0;
                 commands.entity(entity).insert(Grounded);
-            } else {
-                // Se já estava grounded, só corrige a posição
-                transform.translation.y = FLOOR_Y;
             }
-        } else if was_grounded && transform.translation.y > FLOOR_Y + 1.0 {
-            // Remove Grounded se saiu do chão
+        } else if was_grounded && transform.translation.y > FLOOR_Y + 5.0 {
+            // Remove Grounded se saiu do chão com uma margem maior
             commands.entity(entity).remove::<Grounded>();
         }
     }
