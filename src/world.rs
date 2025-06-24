@@ -28,9 +28,21 @@ fn spawn_floor(mut commands: Commands) {
     });
 }
 
-fn gravity_system(mut query: Query<&mut Velocity, (With<Player>, Without<Charging>)>, time: Res<Time>) {
-    if let Ok(mut velocity) = query.get_single_mut() {
-        velocity.y -= GRAVITY * time.delta_seconds();
+fn gravity_system(
+    mut query: Query<(&mut Velocity, Option<&Charging>), With<Player>>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+) {
+    if let Ok((mut velocity, charging_opt)) = query.get_single_mut() {
+        let gravity_multiplier = if charging_opt.is_some() {
+            CHARGING_GRAVITY_MULTIPLIER
+        } else if keyboard_input.pressed(KeyCode::KeyA) || keyboard_input.pressed(KeyCode::KeyD) {
+            LATERAL_GRAVITY_MULTIPLIER
+        } else {
+            1.0
+        };
+
+        velocity.y -= GRAVITY * gravity_multiplier * time.delta_seconds();
     }
 }
 

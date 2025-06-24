@@ -28,3 +28,7 @@ pub const MAX_AERIAL_VERTICAL_SPEED: f32 = 550.0;
 pub const AERIAL_DOWNWARD_FORCE: f32 = 1500.0;
 /// Tempo de recarga em segundos para as habilidades de burst e dash.
 pub const ABILITY_COOLDOWN: f32 = 1.0;
+/// Multiplicador da gravidade quando o jogador está se movendo lateralmente.
+pub const LATERAL_GRAVITY_MULTIPLIER: f32 = 0.5;
+/// Multiplicador da gravidade quando o jogador está mirando o dash.
+pub const CHARGING_GRAVITY_MULTIPLIER: f32 = 0.1;

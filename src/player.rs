@@ -20,6 +20,7 @@ impl Plugin for PlayerPlugin {
 
 fn spawn_player(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -40,9 +41,9 @@ fn spawn_player(
     // Spawn the player with the arrow as a child
     commands.spawn((
         SpriteBundle {
+            texture: asset_server.load("hacker_pigeon.png"),
             sprite: Sprite {
-                color: Color::rgb(0.8, 0.8, 0.8),
-                custom_size: Some(Vec2::new(16.0, 16.0)),
+                custom_size: Some(Vec2::new(32.0, 32.0)),
                 ..default()
             },
             ..default()
