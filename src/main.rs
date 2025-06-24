@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::render::{
+    render_asset::RenderAssetUsages,
     settings::{Backends, RenderCreation, WgpuSettings},
     RenderPlugin,
 };
@@ -10,6 +11,7 @@ const PLAYER_SPEED: f32 = 250.0;
 const PLAYER_DASH_SPEED: f32 = 1000.0;
 const PLAYER_DASH_DURATION: f32 = 0.15;
 const FRICTION: f32 = 5.0;
+const CHARGING_FRICTION: f32 = 10.0;
 
 // --- Components ---
 
@@ -41,6 +43,14 @@ struct WeakPoint {
     direction: Vec2,
 }
 
+#[derive(Component)]
+struct AimArrow;
+
+#[derive(Component)]
+struct Charging {
+    direction: Vec2,
+}
+
 
 fn main() {
     App::new()
@@ -66,19 +76,40 @@ fn main() {
         .add_systems(Startup, (setup, setup_ui))
         .add_systems(Update, (
             player_movement_system,
-            player_dash_system,
+            player_charge_system,
+            dashing_system,
             apply_velocity_system,
             friction_system, // Adicionado para movimento suave
             update_hp_ui_system,
             collision_system,
             death_system,
-        ))
+        ).chain())
         .run();
 }
 
-fn setup(mut commands: Commands) {
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
     commands.spawn(Camera2dBundle::default());
 
+    // Cria uma malha de triângulo para a seta
+    let mut arrow_mesh = Mesh::new(
+        bevy::render::render_resource::PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
+    // Um triângulo isósceles apontando para a direita (ao longo do eixo X)
+    arrow_mesh.insert_attribute(
+        Mesh::ATTRIBUTE_POSITION,
+        vec![[12.0, 0.0, 0.0], [-6.0, 8.0, 0.0], [-6.0, -8.0, 0.0]],
+    );
+    arrow_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; 3]);
+    arrow_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[1.0, 0.5], [0.0, 1.0], [0.0, 0.0]]);
+    let arrow_mesh_handle = meshes.add(arrow_mesh);
+    let arrow_material_handle = materials.add(ColorMaterial::from(Color::YELLOW));
+
+    // Gera o jogador com a seta como um filho
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
@@ -91,7 +122,18 @@ fn setup(mut commands: Commands) {
         Player,
         Velocity::default(),
         Health { current: 3, max: 3 },
-    ));
+    )).with_children(|parent| {
+        parent.spawn((
+            ColorMesh2dBundle {
+                mesh: arrow_mesh_handle.into(),
+                material: arrow_material_handle,
+                visibility: Visibility::Hidden,
+                transform: Transform::from_xyz(0.0, 0.0, 2.0), // Posição relativa ao jogador
+                ..default()
+            },
+            AimArrow,
+        ));
+    });
 
     // Adiciona o inimigo com um ponto fraco visual
     commands
@@ -201,39 +243,101 @@ fn death_system(mut commands: Commands, query: Query<(Entity, &Health)>) {
 
 fn player_movement_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut Velocity, (With<Player>, Without<Dashing>)>, 
+    mut query: Query<&mut Velocity, (With<Player>, Without<Dashing>, Without<Charging>)>,
     time: Res<Time>
 ) {
     if let Ok(mut velocity) = query.get_single_mut() {
         let mut direction = Vec2::ZERO;
-
-        if keyboard_input.pressed(KeyCode::KeyW) {
-            direction.y += 1.0;
-        }
-        if keyboard_input.pressed(KeyCode::KeyS) {
-            direction.y -= 1.0;
-        }
-        if keyboard_input.pressed(KeyCode::KeyA) {
-            direction.x -= 1.0;
-        }
-        if keyboard_input.pressed(KeyCode::KeyD) {
-            direction.x += 1.0;
-        }
-
+        if keyboard_input.pressed(KeyCode::KeyW) { direction.y += 1.0; }
+        if keyboard_input.pressed(KeyCode::KeyS) { direction.y -= 1.0; }
+        if keyboard_input.pressed(KeyCode::KeyA) { direction.x -= 1.0; }
+        if keyboard_input.pressed(KeyCode::KeyD) { direction.x += 1.0; }
         if direction != Vec2::ZERO {
             velocity.0 += direction.normalize() * PLAYER_ACCELERATION * time.delta_seconds();
         }
     }
 }
 
+fn player_charge_system(
+    mut commands: Commands,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut player_query: Query<(Entity, &mut Velocity, Option<&mut Charging>), With<Player>>,
+    mut arrow_query: Query<(&mut Transform, &mut Visibility), With<AimArrow>>,
+    time: Res<Time>,
+) {
+    if let Ok((entity, mut velocity, charging_opt)) = player_query.get_single_mut() {
+        if let Some(mut charging) = charging_opt {
+            // O jogador está carregando. Aplica atrito forte e verifica a entrada.
+            velocity.0 *= (1.0 - CHARGING_FRICTION * time.delta_seconds()).max(0.0);
+            if velocity.length_squared() < 0.1 {
+                velocity.0 = Vec2::ZERO;
+            }
+
+            if keyboard_input.just_released(KeyCode::Space) {
+                // Executa o dash ao soltar
+                let dash_dir = charging.direction; // A direção já está normalizada
+                velocity.0 = dash_dir * PLAYER_DASH_SPEED;
+                commands.entity(entity).remove::<Charging>();
+                commands.entity(entity).insert(Dashing {
+                    timer: Timer::from_seconds(PLAYER_DASH_DURATION, TimerMode::Once),
+                });
+
+                // Esconde a seta
+                if let Ok((_, mut arrow_visibility)) = arrow_query.get_single_mut() {
+                    *arrow_visibility = Visibility::Hidden;
+                }
+            } else {
+                // Ainda carregando, atualiza a direção da mira
+                let mut new_direction = charging.direction;
+                if keyboard_input.pressed(KeyCode::KeyW) { new_direction = Vec2::Y; }
+                if keyboard_input.pressed(KeyCode::KeyS) { new_direction = -Vec2::Y; }
+                if keyboard_input.pressed(KeyCode::KeyA) { new_direction = -Vec2::X; }
+                if keyboard_input.pressed(KeyCode::KeyD) { new_direction = Vec2::X; }
+
+                if new_direction != Vec2::ZERO {
+                    charging.direction = new_direction.normalize();
+                    // Atualiza a transformação da seta (posição e rotação)
+                    if let Ok((mut arrow_transform, _)) = arrow_query.get_single_mut() {
+                        let offset = 25.0;
+                        arrow_transform.translation = (charging.direction * offset).extend(2.0);
+                        arrow_transform.rotation = Quat::from_rotation_z(charging.direction.y.atan2(charging.direction.x));
+                    }
+                }
+            }
+        } else {
+            // O jogador não está carregando. Verifica se deve começar a carregar.
+            if keyboard_input.just_pressed(KeyCode::Space) {
+                // Para o movimento instantaneamente
+                velocity.0 = Vec2::ZERO;
+
+                // Direção inicial da mira
+                let mut direction = Vec2::Y; // Padrão
+                if keyboard_input.pressed(KeyCode::KeyW) { direction = Vec2::Y; }
+                if keyboard_input.pressed(KeyCode::KeyS) { direction = -Vec2::Y; }
+                if keyboard_input.pressed(KeyCode::KeyA) { direction = -Vec2::X; }
+                if keyboard_input.pressed(KeyCode::KeyD) { direction = Vec2::X; }
+                let final_direction = direction.normalize();
+
+                commands.entity(entity).insert(Charging { direction: final_direction });
+
+                // Mostra e orienta a seta
+                if let Ok((mut arrow_transform, mut arrow_visibility)) = arrow_query.get_single_mut() {
+                    *arrow_visibility = Visibility::Visible;
+                    let offset = 25.0;
+                    arrow_transform.translation = (final_direction * offset).extend(2.0);
+                    arrow_transform.rotation = Quat::from_rotation_z(final_direction.y.atan2(final_direction.x));
+                }
+            }
+        }
+    }
+}
+
 fn friction_system(
-    mut query: Query<&mut Velocity, (With<Player>, Without<Dashing>)>, 
+    mut query: Query<&mut Velocity, (With<Player>, Without<Dashing>, Without<Charging>)>,
     time: Res<Time>
 ) {
     if let Ok(mut velocity) = query.get_single_mut() {
-        if velocity.0 == Vec2::ZERO {
-            return;
-        }
+        if velocity.0 == Vec2::ZERO { return; }
         velocity.0 *= (1.0 - FRICTION * time.delta_seconds()).max(0.0);
         if velocity.length() > PLAYER_SPEED {
             velocity.0 = velocity.normalize() * PLAYER_SPEED;
@@ -244,30 +348,15 @@ fn friction_system(
     }
 }
 
-fn player_dash_system(
+fn dashing_system(
     mut commands: Commands,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(Entity, &mut Velocity, Option<&mut Dashing>), With<Player>>,
     time: Res<Time>,
+    mut query: Query<(Entity, &mut Dashing)>,
 ) {
-    if let Ok((entity, mut velocity, dashing_opt)) = query.get_single_mut() {
-        if let Some(mut dashing) = dashing_opt {
-            dashing.timer.tick(time.delta());
-            if dashing.timer.finished() {
-                commands.entity(entity).remove::<Dashing>();
-            }
-        } else {
-            if keyboard_input.just_pressed(KeyCode::Space) {
-                let dash_direction = if velocity.0 != Vec2::ZERO {
-                    velocity.0.normalize()
-                } else {
-                    Vec2::Y
-                };
-                velocity.0 = dash_direction * PLAYER_DASH_SPEED;
-                commands.entity(entity).insert(Dashing {
-                    timer: Timer::from_seconds(PLAYER_DASH_DURATION, TimerMode::Once),
-                });
-            }
+    for (entity, mut dashing) in query.iter_mut() {
+        dashing.timer.tick(time.delta());
+        if dashing.timer.finished() {
+            commands.entity(entity).remove::<Dashing>();
         }
     }
 }
