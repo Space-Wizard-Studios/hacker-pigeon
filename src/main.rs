@@ -1,9 +1,15 @@
 use bevy::prelude::*;
+use bevy::render::{
+    settings::{Backends, RenderCreation, WgpuSettings},
+    RenderPlugin,
+};
 
 // --- Constants ---
-const PLAYER_SPEED: f32 = 200.0;
+const PLAYER_ACCELERATION: f32 = 2000.0;
+const PLAYER_SPEED: f32 = 250.0;
 const PLAYER_DASH_SPEED: f32 = 1000.0;
 const PLAYER_DASH_DURATION: f32 = 0.15;
+const FRICTION: f32 = 5.0;
 
 // --- Components ---
 
@@ -30,23 +36,39 @@ struct HpText;
 #[derive(Component)]
 struct Enemy;
 
+#[derive(Component)]
+struct WeakPoint {
+    direction: Vec2,
+}
+
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                // Corrigido para a sintaxe do Bevy 0.13
-                resolution: (800.0, 600.0).into(),
-                title: "Pombo Hacker".into(),
-                ..default()
-            }),
-            ..default()
-        }).set(ImagePlugin::default_nearest()))
+        .add_plugins((
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        resolution: (800.0, 600.0).into(),
+                        title: "Pombo Hacker".into(),
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(ImagePlugin::default_nearest())
+                .set(RenderPlugin {
+                    render_creation: RenderCreation::Automatic(WgpuSettings {
+                        backends: Some(Backends::VULKAN),
+                        ..default()
+                    }),
+                    ..default()
+                }),
+        ))
         .add_systems(Startup, (setup, setup_ui))
         .add_systems(Update, (
             player_movement_system,
             player_dash_system,
             apply_velocity_system,
+            friction_system, // Adicionado para movimento suave
             update_hp_ui_system,
             collision_system,
             death_system,
@@ -60,7 +82,7 @@ fn setup(mut commands: Commands) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::rgb(0.8, 0.8, 0.8), // Corrigido de srgb para rgb
+                color: Color::rgb(0.8, 0.8, 0.8),
                 custom_size: Some(Vec2::new(16.0, 16.0)),
                 ..default()
             },
@@ -71,19 +93,33 @@ fn setup(mut commands: Commands) {
         Health { current: 3, max: 3 },
     ));
 
-    // Adiciona o inimigo
-    commands.spawn((
-        SpriteBundle {
-            sprite: Sprite {
-                color: Color::rgb(1.0, 0.2, 0.2), // Vermelho
-                custom_size: Some(Vec2::new(16.0, 16.0)),
+    // Adiciona o inimigo com um ponto fraco visual
+    commands
+        .spawn((
+            SpriteBundle {
+                sprite: Sprite {
+                    color: Color::rgb(1.0, 0.2, 0.2), // Vermelho
+                    custom_size: Some(Vec2::new(16.0, 16.0)),
+                    ..default()
+                },
+                transform: Transform::from_xyz(100.0, 0.0, 0.0),
                 ..default()
             },
-            transform: Transform::from_xyz(100.0, 0.0, 0.0),
-            ..default()
-        },
-        Enemy,
-    ));
+            Enemy,
+            WeakPoint { direction: Vec2::X }, // Ponto fraco à direita
+        ))
+        .with_children(|parent| {
+            // Adiciona um sprite filho para indicar o ponto fraco
+            parent.spawn(SpriteBundle {
+                sprite: Sprite {
+                    color: Color::rgb(1.0, 0.8, 0.8), // Rosa claro
+                    custom_size: Some(Vec2::new(4.0, 16.0)),
+                    ..default()
+                },
+                transform: Transform::from_xyz(8.0, 0.0, 1.0),
+                ..default()
+            });
+        });
 }
 
 // --- UI Systems ---
@@ -110,8 +146,8 @@ fn setup_ui(mut commands: Commands) {
 }
 
 fn update_hp_ui_system(
-    player_query: Query<&Health, (With<Player>, Changed<Health>)>,
-    mut text_query: Query<&mut Text, With<HpText>>,
+    player_query: Query<&Health, (With<Player>, Changed<Health>)>, 
+    mut text_query: Query<&mut Text, With<HpText>>
 ) {
     if let Ok(player_health) = player_query.get_single() {
         if let Ok(mut text) = text_query.get_single_mut() {
@@ -124,17 +160,15 @@ fn update_hp_ui_system(
 
 fn collision_system(
     mut commands: Commands,
-    mut player_query: Query<(&Transform, &Sprite, &mut Health, Option<&Dashing>), With<Player>>,
-    enemy_query: Query<(Entity, &Transform, &Sprite), With<Enemy>>,
+    mut player_query: Query<(&Transform, &mut Health, &Velocity, Option<&Dashing>), With<Player>>,
+    enemy_query: Query<(Entity, &Transform, &Sprite, &WeakPoint), With<Enemy>>,
 ) {
-    if let Ok((player_transform, player_sprite, mut player_health, dashing_opt)) = player_query.get_single_mut() {
-        let player_size = player_sprite.custom_size.expect("Player sprite has no size");
+    if let Ok((player_transform, mut player_health, player_velocity, dashing_opt)) = player_query.get_single_mut() {
+        let player_size = Vec2::new(16.0, 16.0);
 
-        for (enemy_entity, enemy_transform, enemy_sprite) in enemy_query.iter() {
+        for (enemy_entity, enemy_transform, enemy_sprite, weak_point) in enemy_query.iter() {
             let enemy_size = enemy_sprite.custom_size.expect("Enemy sprite has no size");
 
-            // Substituído bevy::sprite::collide_aabb::collide por uma verificação manual
-            // para contornar problemas de compilação no ambiente.
             let player_pos = player_transform.translation;
             let enemy_pos = enemy_transform.translation;
 
@@ -142,11 +176,11 @@ fn collision_system(
                 && (player_pos.y - enemy_pos.y).abs() < (player_size.y + enemy_size.y) / 2.0
             {
                 if dashing_opt.is_some() {
-                    // Se o jogador está com o impulso, destrói o inimigo
-                    commands.entity(enemy_entity).despawn();
+                    let dash_direction = player_velocity.0.normalize_or_zero();
+                    if dash_direction.dot(weak_point.direction) > 0.9 {
+                        commands.entity(enemy_entity).despawn();
+                    }
                 } else {
-                    // Se não, o jogador toma dano.
-                    // O inimigo é destruído para evitar dano múltiplo.
                     if player_health.current > 0 {
                         player_health.current -= 1;
                         commands.entity(enemy_entity).despawn();
@@ -165,16 +199,14 @@ fn death_system(mut commands: Commands, query: Query<(Entity, &Health)>) {
     }
 }
 
-
-// System para movimento normal (WASD)
 fn player_movement_system(
-    keyboard_input: Res<ButtonInput<KeyCode>>, // Corrigido de Input para ButtonInput
-    mut query: Query<&mut Velocity, (With<Player>, Without<Dashing>)>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut query: Query<&mut Velocity, (With<Player>, Without<Dashing>)>, 
+    time: Res<Time>
 ) {
     if let Ok(mut velocity) = query.get_single_mut() {
         let mut direction = Vec2::ZERO;
 
-        // Corrigido para usar os KeyCode sem o prefixo 'Key'
         if keyboard_input.pressed(KeyCode::KeyW) {
             direction.y += 1.0;
         }
@@ -188,43 +220,50 @@ fn player_movement_system(
             direction.x += 1.0;
         }
 
-        velocity.0 = if direction == Vec2::ZERO {
-            // Para o jogador se nenhuma tecla de movimento estiver pressionada
-            Vec2::ZERO
-        } else {
-            // Define a velocidade baseada na direção
-            direction.normalize() * PLAYER_SPEED
-        };
+        if direction != Vec2::ZERO {
+            velocity.0 += direction.normalize() * PLAYER_ACCELERATION * time.delta_seconds();
+        }
     }
 }
 
-// System para iniciar e gerenciar o dash com a tecla Espaço
+fn friction_system(
+    mut query: Query<&mut Velocity, (With<Player>, Without<Dashing>)>, 
+    time: Res<Time>
+) {
+    if let Ok(mut velocity) = query.get_single_mut() {
+        if velocity.0 == Vec2::ZERO {
+            return;
+        }
+        velocity.0 *= (1.0 - FRICTION * time.delta_seconds()).max(0.0);
+        if velocity.length() > PLAYER_SPEED {
+            velocity.0 = velocity.normalize() * PLAYER_SPEED;
+        }
+        if velocity.length_squared() < 1.0 {
+            velocity.0 = Vec2::ZERO;
+        }
+    }
+}
+
 fn player_dash_system(
     mut commands: Commands,
-    keyboard_input: Res<ButtonInput<KeyCode>>, // Corrigido de Input para ButtonInput
+    keyboard_input: Res<ButtonInput<KeyCode>>,
     mut query: Query<(Entity, &mut Velocity, Option<&mut Dashing>), With<Player>>,
     time: Res<Time>,
 ) {
     if let Ok((entity, mut velocity, dashing_opt)) = query.get_single_mut() {
         if let Some(mut dashing) = dashing_opt {
-            // Se o pombo já está em "dash", atualiza o timer
             dashing.timer.tick(time.delta());
             if dashing.timer.finished() {
-                // Remove o componente Dashing quando o tempo acaba
                 commands.entity(entity).remove::<Dashing>();
             }
         } else {
-            // Se não está em "dash", verifica se a tecla Espaço foi pressionada para iniciar
             if keyboard_input.just_pressed(KeyCode::Space) {
                 let dash_direction = if velocity.0 != Vec2::ZERO {
                     velocity.0.normalize()
                 } else {
-                    // Se estiver parado, o impulso é para cima
                     Vec2::Y
                 };
-
                 velocity.0 = dash_direction * PLAYER_DASH_SPEED;
-
                 commands.entity(entity).insert(Dashing {
                     timer: Timer::from_seconds(PLAYER_DASH_DURATION, TimerMode::Once),
                 });
@@ -233,7 +272,6 @@ fn player_dash_system(
     }
 }
 
-// System genérico que aplica a velocidade à posição de qualquer entidade que os tenha
 fn apply_velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
     for (mut transform, velocity) in query.iter_mut() {
         transform.translation.x += velocity.x * time.delta_seconds();
