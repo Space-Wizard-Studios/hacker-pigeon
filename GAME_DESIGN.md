@@ -18,11 +18,26 @@ Voando entre prédios, postes e drones de vigilância, sua missão é invadir re
 
 ### Movimentação
 
-- Controle o pombo em voo livre usando `▲ ◀ ▼ ▶` ou `W A S D`;
-- O pombo voa continuamente, com aceleração e desaceleração suaves, parando no ar se não houver entrada de movimento;
-- Aperte `Espaço` para desacelerar gradualmente o movimento do pombo e direcioná-lo com um impulso para uma direção específica, permitindo causar dano em pontos fracos dos inimigos ou realizar manobras rápidas.
+A movimentação do pombo é dividida entre estados: no chão e no ar.
 
-### Perigos, Obstáculos e Objetivos
+- Segure `W` para começar a bater as asas e levantar voo.
+
+**No Chão:**
+
+- Use `A` e `D` para se mover para os lados com pequenos saltos (hops).
+
+**No Ar:**
+
+- Use `A` e `D` para controlar o movimento horizontal.
+- Segure `S` para um mergulho rápido para baixo.
+
+**Habilidades Especiais:**
+
+- O **impulso** (`Espaço`) e o **dash** (`Mouse`) compartilham um tempo de recarga, mas o impulso recarrega um pouco mais rápido.
+
+![alt text](movimento.png)
+
+## Perigos, Obstáculos e Objetivos
 
 - Drones de vigilância movem-se em padrões previsíveis;
   - Colidir com drones causa dano ao pombo, reduzindo suas vidas;
