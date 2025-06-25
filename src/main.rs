@@ -51,8 +51,11 @@ struct Velocity {
 #[derive(Component, Default, Debug)]
 struct Grounded;
 
-#[derive(Component, Default, Debug, Deref, DerefMut)]
-struct ChargingDash(Vec2);
+#[derive(Component, Default, Debug)]
+struct ChargingDash {
+    dir: Vec2,
+    power: f32,
+}
 
 #[derive(Component, Default, Debug)]
 struct Dashing {
@@ -319,7 +322,9 @@ fn player_start_charge_dash_system(
 
             let pos = transform.translation.xy();
             let dir = (mouse_pos.0 - pos).normalize_or_zero();
-            commands.entity(entity).insert(ChargingDash(dir));
+            commands
+                .entity(entity)
+                .insert(ChargingDash { dir, power: 0. });
         }
     }
 }
@@ -329,17 +334,21 @@ fn player_charge_dash_system(
     input: Res<Input>,
     mouse_pos: Res<MousePos>,
     mut player: Query<(Entity, &Transform, &mut ChargingDash), (With<Player>, Without<Dashing>)>,
+    time: Res<Time>,
 ) {
+    let dt = time.delta_secs();
+
     if let Ok((entity, transform, mut charging)) = player.single_mut() {
         if input.dash() {
             let pos = transform.translation.xy();
             let dir = (mouse_pos.0 - pos).normalize_or_zero();
-            charging.0 = dir;
+            charging.dir = dir;
+            charging.power += dt / PLAYER_CHARGING_POWER_DURATION;
         } else {
             commands.entity(entity).remove::<ChargingDash>();
             commands.entity(entity).insert(Dashing {
-                dir: charging.0,
-                power: PLAYER_DASH_ACCELERATION,
+                dir: charging.dir,
+                power: PLAYER_DASH_ACCELERATION * charging.power.min(1.0),
                 timer: Timer::from_seconds(PLAYER_DASH_DURATION, TimerMode::Once),
             });
         }
@@ -436,12 +445,13 @@ const MOVEMENT_SMOOTHING: f32 = 8.0;
 const AIR_FRICTION: f32 = 0.1;
 const GROUND_FRICTION: f32 = 6.0;
 
-const FLOOR_Y: f32 = 0.0;
+const FLOOR_Y: f32 = -4.0;
 
 const PLAYER_ACCELERATION: f32 = 40.0;
 const PLAYER_MAX_X_SPEED: f32 = 6.0;
 const PLAYER_MIN_FALL_SPEED: f32 = -16.0;
 const PLAYER_MAX_RISE_SPEED: f32 = 6.0;
 const PLAYER_CHARGING_GRAVITY_MULTIPLIER: f32 = 0.1;
+const PLAYER_CHARGING_POWER_DURATION: f32 = 2.0;
 const PLAYER_DASH_DURATION: f32 = 0.2;
 const PLAYER_DASH_ACCELERATION: f32 = 260.0;
