@@ -6,7 +6,7 @@ use bevy::{
 };
 use bevy_asset_loader::prelude::*;
 use bevy_egui::{
-    egui::{self, Align2, Color32, FontId, RichText, TextStyle},
+    egui::{self, Align2, Color32, FontId, RichText},
     EguiContextPass, EguiContexts, EguiPlugin,
 };
 
@@ -42,8 +42,11 @@ struct MousePos(Vec2);
 #[derive(Component, Default, Debug)]
 struct Player;
 
-#[derive(Component, Default, Debug, Deref, DerefMut)]
-struct Velocity(Vec2);
+#[derive(Component, Default, Debug)]
+struct Velocity {
+    current: Vec2,
+    target: Vec2,
+}
 
 #[derive(Component, Default, Debug)]
 struct Grounded;
@@ -235,36 +238,47 @@ fn ui_system(
                     ui.set_min_width(1000.0);
                     ui.vertical(|ui| {
                         ui.label(
-                            RichText::new(format!("EntityIdx: {}", entity.index()))
+                            RichText::new(format!("entity-idx: {}", entity.index()))
                                 .color(Color32::WHITE)
                                 .font(FontId::proportional(16.0)),
                         );
                         ui.label(
                             RichText::new(format!(
-                                "Position:\n{:.2},{:.2}",
+                                "position:\n{:.2},{:.2}",
                                 transform.translation.x, transform.translation.y
                             ))
                             .color(Color32::WHITE)
                             .font(FontId::proportional(16.0)),
                         );
                         ui.label(
-                            RichText::new(format!("Velocity:\n{:.2} {:.2}", vel.x, vel.y))
-                                .color(Color32::WHITE)
-                                .font(FontId::proportional(16.0)),
+                            RichText::new(format!(
+                                "velocity (current):\n{:.2} {:.2}",
+                                vel.current.x, vel.current.y
+                            ))
+                            .color(Color32::WHITE)
+                            .font(FontId::proportional(16.0)),
+                        );
+                        ui.label(
+                            RichText::new(format!(
+                                "velocity (target):\n{:.2} {:.2}",
+                                vel.target.x, vel.target.y
+                            ))
+                            .color(Color32::WHITE)
+                            .font(FontId::proportional(16.0)),
                         );
 
                         ui.label(
-                            RichText::new(format!("Grounded: {}", grounded_opt.is_some()))
+                            RichText::new(format!("grounded: {}", grounded_opt.is_some()))
                                 .color(Color32::WHITE)
                                 .font(FontId::proportional(16.0)),
                         );
                         ui.label(
-                            RichText::new(format!("Charging: {}", charging_opt.is_some()))
+                            RichText::new(format!("charging: {}", charging_opt.is_some()))
                                 .color(Color32::WHITE)
                                 .font(FontId::proportional(16.0)),
                         );
                         ui.label(
-                            RichText::new(format!("Dashing: {}", dashing_opt.is_some()))
+                            RichText::new(format!("dashing: {}", dashing_opt.is_some()))
                                 .color(Color32::WHITE)
                                 .font(FontId::proportional(16.0)),
                         );
@@ -283,11 +297,13 @@ fn player_movement_system(
 
     if let Ok(mut vel) = player.single_mut() {
         let dir = input.direction();
-        let acc = dir * PLAYER_ACCELERATION * dt;
-        vel.0 = vel.0 + acc;
+        vel.target += dir * PLAYER_ACCELERATION * dt;
 
-        vel.x = vel.x.clamp(-PLAYER_MAX_X_SPEED, PLAYER_MAX_X_SPEED);
-        vel.y = vel.y.clamp(PLAYER_MIN_FALL_SPEED, PLAYER_MAX_RISE_SPEED);
+        vel.target.x = vel.target.x.clamp(-PLAYER_MAX_X_SPEED, PLAYER_MAX_X_SPEED);
+        vel.target.y = vel
+            .target
+            .y
+            .clamp(PLAYER_MIN_FALL_SPEED, PLAYER_MAX_RISE_SPEED);
     }
 }
 
@@ -299,7 +315,7 @@ fn player_start_charge_dash_system(
 ) {
     if let Ok((entity, transform, mut vel)) = player.single_mut() {
         if input.dash() {
-            vel.0 = Vec2::ZERO;
+            vel.target = Vec2::ZERO;
 
             let pos = transform.translation.xy();
             let dir = (mouse_pos.0 - pos).normalize_or_zero();
@@ -332,18 +348,17 @@ fn player_charge_dash_system(
 
 fn player_dash_system(
     mut commands: Commands,
-    time: Res<Time>,
     mut player: Query<(Entity, &mut Velocity, &mut Dashing), With<Player>>,
+    time: Res<Time>,
 ) {
     let dt = time.delta_secs();
 
     if let Ok((entity, mut vel, mut dash)) = player.single_mut() {
-        vel.x += dash.dir.x * dash.power * dt;
-        vel.y += dash.dir.y * dash.power * dt;
-        vel.0 = vel.clamp_length_max(dash.power);
+        vel.target += dash.dir * dash.power * dt;
 
         dash.timer.tick(time.delta());
         if dash.timer.finished() {
+            vel.target = dash.dir * PLAYER_MAX_X_SPEED;
             commands.entity(entity).remove::<Dashing>();
         }
     }
@@ -357,49 +372,40 @@ fn gravity_system(
 
     for (mut vel, charging_opt) in query.iter_mut() {
         let multiplier = if charging_opt.is_some() {
-            CHARGING_GRAVITY_MULTIPLIER
+            PLAYER_CHARGING_GRAVITY_MULTIPLIER
         } else {
             1.0
         };
 
-        vel.y += GRAVITY * multiplier * dt;
+        vel.target.y += GRAVITY * multiplier * dt;
     }
 }
 
-fn friction_system(
-    mut query: Query<(&mut Velocity, Option<&Grounded>, Option<&Dashing>)>,
-    time: Res<Time>,
-) {
+fn friction_system(mut query: Query<(&mut Velocity, Option<&Grounded>)>, time: Res<Time>) {
     let dt = time.delta_secs();
 
-    for (mut vel, grounded_opt, dashing_opt) in query.iter_mut() {
-        let friction_x = if grounded_opt.is_some() {
+    for (mut vel, grounded_opt) in query.iter_mut() {
+        let friction = if grounded_opt.is_some() {
             GROUND_FRICTION
-        } else if dashing_opt.is_some() {
-            DASHING_FRICTION
         } else {
             AIR_FRICTION
         };
 
-        let friction_y = if dashing_opt.is_some() {
-            DASHING_FRICTION
-        } else if vel.y < 0.0 {
-            FALL_FRICTION
-        } else {
-            AIR_FRICTION
-        };
-
-        vel.x *= (1.0 - friction_x * dt).max(0.0);
-        vel.y *= (1.0 - friction_y * dt).max(0.0);
+        vel.target.x *= (1.0 - friction * dt).max(0.0);
+        vel.target.y *= (1.0 - friction * dt).max(0.0);
     }
 }
 
-fn apply_velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
+fn apply_velocity_system(mut query: Query<(&mut Transform, &mut Velocity)>, time: Res<Time>) {
     let dt = time.delta_secs();
 
-    for (mut transform, vel) in query.iter_mut() {
-        transform.translation.x += vel.x * dt;
-        transform.translation.y += vel.y * dt;
+    for (mut transform, mut vel) in query.iter_mut() {
+        vel.current = vel
+            .current
+            .lerp(vel.target, (MOVEMENT_SMOOTHING * dt).min(1.0));
+
+        transform.translation.x += vel.current.x * dt;
+        transform.translation.y += vel.current.y * dt;
     }
 }
 
@@ -410,11 +416,12 @@ fn apply_grounding_system(
     for (entity, mut transform, mut vel) in query.iter_mut() {
         let is_below_or_on_floor = transform.translation.y <= FLOOR_Y;
         let is_above_ground_threshold = transform.translation.y > FLOOR_Y + 0.01;
-        let is_falling = vel.y <= 0.0;
+        let is_falling = vel.current.y <= 0.0;
 
         if is_below_or_on_floor && is_falling {
             transform.translation.y = FLOOR_Y;
-            vel.y = 0.0;
+            vel.current.y = 0.0;
+            vel.target.y = 0.0;
 
             commands.entity(entity).insert_if_new(Grounded);
         } else if is_above_ground_threshold {
@@ -424,18 +431,17 @@ fn apply_grounding_system(
 }
 
 const GRAVITY: f32 = -9.8;
-const CHARGING_GRAVITY_MULTIPLIER: f32 = 0.1;
+const MOVEMENT_SMOOTHING: f32 = 8.0;
 
-const AIR_FRICTION: f32 = 4.0;
-const FALL_FRICTION: f32 = 0.0;
-const GROUND_FRICTION: f32 = 12.0;
-const DASHING_FRICTION: f32 = 12.0;
+const AIR_FRICTION: f32 = 0.1;
+const GROUND_FRICTION: f32 = 6.0;
 
 const FLOOR_Y: f32 = 0.0;
 
-const PLAYER_ACCELERATION: f32 = 80.0;
+const PLAYER_ACCELERATION: f32 = 40.0;
 const PLAYER_MAX_X_SPEED: f32 = 6.0;
-const PLAYER_MIN_FALL_SPEED: f32 = -12.0;
+const PLAYER_MIN_FALL_SPEED: f32 = -16.0;
 const PLAYER_MAX_RISE_SPEED: f32 = 6.0;
-const PLAYER_DASH_DURATION: f32 = 0.35;
+const PLAYER_CHARGING_GRAVITY_MULTIPLIER: f32 = 0.1;
+const PLAYER_DASH_DURATION: f32 = 0.2;
 const PLAYER_DASH_ACCELERATION: f32 = 260.0;
