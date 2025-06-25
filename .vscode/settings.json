@@ -1,10 +1,12 @@
 {
     "cSpell.words": [
-        "cooldown",
-        "Cooldown",
-        "despawn",
-        "Spacebar",
-        "WEAKPOINT",
-        "Wgpu"
-    ]
+		"cooldown",
+		"Cooldown",
+		"despawn",
+		"egui",
+		"Framepace",
+		"Spacebar",
+		"WEAKPOINT",
+		"Wgpu"
+	]
 }
