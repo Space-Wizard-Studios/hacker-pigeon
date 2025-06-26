@@ -13,6 +13,8 @@ use bevy_egui::{
 use bevy_framepace::{FramepacePlugin, FramepaceSettings};
 use clap::Parser;
 
+use crate::input::{Input, MousePos};
+
 mod args;
 mod input;
 
@@ -33,12 +35,6 @@ struct ImageAssets {
 #[derive(Resource, Default, Debug)]
 struct Score(u32);
 
-#[derive(Resource, Default, Debug, Deref)]
-struct Input(u8);
-
-#[derive(Resource, Default, Debug, Deref)]
-struct MousePos(Vec2);
-
 #[derive(Component, Default, Debug)]
 struct Player;
 
@@ -57,15 +53,44 @@ struct ChargingDash {
     power: f32,
 }
 
+impl ChargingDash {
+    fn new(dir: Vec2) -> Self {
+        Self {
+            dir: dir,
+            power: 0.,
+        }
+    }
+}
+
 #[derive(Component, Default, Debug)]
 struct Dashing {
-    dir: Vec2,
-    power: f32,
+    power: Vec2,
     timer: Timer,
 }
 
-#[derive(Component, Default, Debug, Deref, DerefMut)]
-struct Health(#[deref] u8, u8);
+impl Dashing {
+    fn new(power: Vec2, duration_secs: f32) -> Self {
+        Self {
+            power,
+            timer: Timer::from_seconds(duration_secs, TimerMode::Once),
+        }
+    }
+}
+
+#[derive(Component, Default, Debug)]
+struct Health {
+    current: u8,
+    max: u8,
+}
+
+impl Health {
+    fn new(value: u8) -> Self {
+        Self {
+            current: value,
+            max: value,
+        }
+    }
+}
 
 #[derive(Component, Default, Debug)]
 struct Killed;
@@ -175,7 +200,7 @@ fn spawn_player(
         Player,
         Velocity::default(),
         Transform::from_translation(Vec3::ZERO),
-        Health(3, 3),
+        Health::new(3),
         Sprite {
             image: images.hacker_pigeon.clone(),
             custom_size: Some(Vec2::new(0.5, 0.5)),
@@ -212,7 +237,8 @@ fn ui_system(
                 );
             });
 
-        let input_dir = input.direction();
+        let input_dir = input.dir();
+        let mouse_pos = **mouse_pos;
 
         egui::Area::new("debug input".into())
             .anchor(Align2::LEFT_TOP, (16., 16.))
@@ -299,14 +325,18 @@ fn player_movement_system(
     let dt = time.delta_secs();
 
     if let Ok(mut vel) = player.single_mut() {
-        let dir = input.direction();
-        vel.target += dir * PLAYER_ACCELERATION * dt;
+        let input = input.dir();
+        vel.target += input * PLAYER_ACCELERATION * dt;
 
         vel.target.x = vel.target.x.clamp(-PLAYER_MAX_X_SPEED, PLAYER_MAX_X_SPEED);
         vel.target.y = vel
             .target
             .y
             .clamp(PLAYER_MIN_FALL_SPEED, PLAYER_MAX_RISE_SPEED);
+
+        if input.y > 0. {
+            vel.target.y = vel.target.y.max(0.)
+        }
     }
 }
 
@@ -321,10 +351,8 @@ fn player_start_charge_dash_system(
             vel.target = Vec2::ZERO;
 
             let pos = transform.translation.xy();
-            let dir = (mouse_pos.0 - pos).normalize_or_zero();
-            commands
-                .entity(entity)
-                .insert(ChargingDash { dir, power: 0. });
+            let dir = (**mouse_pos - pos).normalize_or_zero();
+            commands.entity(entity).insert(ChargingDash::new(dir));
         }
     }
 }
@@ -341,16 +369,16 @@ fn player_charge_dash_system(
     if let Ok((entity, transform, mut charging)) = player.single_mut() {
         if input.dash() {
             let pos = transform.translation.xy();
-            let dir = (mouse_pos.0 - pos).normalize_or_zero();
+            let dir = (**mouse_pos - pos).normalize_or_zero();
             charging.dir = dir;
             charging.power += dt / PLAYER_CHARGING_POWER_DURATION;
         } else {
+            let dash_power = charging.power.min(1.0);
             commands.entity(entity).remove::<ChargingDash>();
-            commands.entity(entity).insert(Dashing {
-                dir: charging.dir,
-                power: PLAYER_DASH_ACCELERATION * charging.power.min(1.0),
-                timer: Timer::from_seconds(PLAYER_DASH_DURATION, TimerMode::Once),
-            });
+            commands.entity(entity).insert(Dashing::new(
+                charging.dir * dash_power,
+                PLAYER_DASH_DURATION,
+            ));
         }
     }
 }
@@ -360,14 +388,12 @@ fn player_dash_system(
     mut player: Query<(Entity, &mut Velocity, &mut Dashing), With<Player>>,
     time: Res<Time>,
 ) {
-    let dt = time.delta_secs();
-
     if let Ok((entity, mut vel, mut dash)) = player.single_mut() {
-        vel.target += dash.dir * dash.power * dt;
+        vel.target = dash.power * PLAYER_DASH_SPEED;
 
         dash.timer.tick(time.delta());
         if dash.timer.finished() {
-            vel.target = dash.dir * PLAYER_MAX_X_SPEED;
+            vel.target = dash.power.normalize_or_zero() * PLAYER_MAX_X_SPEED;
             commands.entity(entity).remove::<Dashing>();
         }
     }
@@ -442,16 +468,16 @@ fn apply_grounding_system(
 const GRAVITY: f32 = -9.8;
 const MOVEMENT_SMOOTHING: f32 = 8.0;
 
-const AIR_FRICTION: f32 = 0.1;
+const AIR_FRICTION: f32 = 0.4;
 const GROUND_FRICTION: f32 = 6.0;
 
 const FLOOR_Y: f32 = -4.0;
 
-const PLAYER_ACCELERATION: f32 = 40.0;
+const PLAYER_ACCELERATION: f32 = 60.0;
 const PLAYER_MAX_X_SPEED: f32 = 6.0;
 const PLAYER_MIN_FALL_SPEED: f32 = -16.0;
-const PLAYER_MAX_RISE_SPEED: f32 = 6.0;
-const PLAYER_CHARGING_GRAVITY_MULTIPLIER: f32 = 0.1;
-const PLAYER_CHARGING_POWER_DURATION: f32 = 2.0;
-const PLAYER_DASH_DURATION: f32 = 0.2;
-const PLAYER_DASH_ACCELERATION: f32 = 260.0;
+const PLAYER_MAX_RISE_SPEED: f32 = 12.0;
+const PLAYER_CHARGING_GRAVITY_MULTIPLIER: f32 = 0.05;
+const PLAYER_CHARGING_POWER_DURATION: f32 = 0.5;
+const PLAYER_DASH_DURATION: f32 = 0.1;
+const PLAYER_DASH_SPEED: f32 = 80.0;

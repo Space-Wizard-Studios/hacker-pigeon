@@ -1,12 +1,16 @@
 use bevy::prelude::*;
 
-use crate::{Input, MousePos};
-
 const INPUT_UP: u8 = 1 << 0;
 const INPUT_DOWN: u8 = 1 << 1;
 const INPUT_LEFT: u8 = 1 << 2;
 const INPUT_RIGHT: u8 = 1 << 3;
 const INPUT_DASH: u8 = 1 << 4;
+
+#[derive(Resource, Default, Debug, Deref)]
+pub struct Input(u8);
+
+#[derive(Resource, Default, Debug, Deref)]
+pub struct MousePos(Vec2);
 
 pub fn read_mouse_position(
     mut commands: Commands,
@@ -51,23 +55,23 @@ pub fn read_inputs(
 }
 
 impl Input {
-    pub fn direction(&self) -> Vec2 {
-        let mut direction = Vec2::ZERO;
+    pub fn dir(&self) -> Vec2 {
+        let mut dir = Vec2::ZERO;
 
         if self.0 & INPUT_UP != 0 {
-            direction.y += 1.;
+            dir.y += 1.;
         }
         if self.0 & INPUT_DOWN != 0 {
-            direction.y -= 1.;
+            dir.y -= 1.;
         }
         if self.0 & INPUT_RIGHT != 0 {
-            direction.x += 1.;
+            dir.x += 1.;
         }
         if self.0 & INPUT_LEFT != 0 {
-            direction.x -= 1.;
+            dir.x -= 1.;
         }
 
-        direction.normalize_or_zero()
+        dir.normalize_or_zero()
     }
 
     pub fn dash(&self) -> bool {
