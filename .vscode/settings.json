@@ -6,6 +6,8 @@
 		"egui",
 		"Framepace",
 		"Spacebar",
+		"srgb",
+		"srgba",
 		"WEAKPOINT",
 		"Wgpu"
 	]

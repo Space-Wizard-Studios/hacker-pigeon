@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::game_state::GameState;
+
 const INPUT_UP: u8 = 1 << 0;
 const INPUT_DOWN: u8 = 1 << 1;
 const INPUT_LEFT: u8 = 1 << 2;
@@ -12,23 +14,20 @@ pub struct Input(u8);
 #[derive(Resource, Default, Debug, Deref)]
 pub struct MousePos(Vec2);
 
-pub fn read_mouse_position(
-    mut commands: Commands,
-    windows: Query<&Window>,
-    camera_q: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
-) {
-    let window = windows.single().unwrap();
-    let (camera, camera_transform) = camera_q.single().unwrap();
+pub struct InputPlugin;
 
-    if let Some(Ok(world_position)) = window
-        .cursor_position()
-        .map(|cursor| camera.viewport_to_world_2d(camera_transform, cursor))
-    {
-        commands.insert_resource(MousePos(world_position));
+impl Plugin for InputPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<Input>()
+            .init_resource::<MousePos>()
+            .add_systems(
+                Update,
+                (read_inputs, read_mouse_position).run_if(in_state(GameState::GameRunning)),
+            );
     }
 }
 
-pub fn read_inputs(
+fn read_inputs(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
@@ -52,6 +51,22 @@ pub fn read_inputs(
     }
 
     commands.insert_resource(Input(input));
+}
+
+fn read_mouse_position(
+    mut commands: Commands,
+    windows: Query<&Window>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+) {
+    let window = windows.single().unwrap();
+    let (camera, camera_transform) = camera_q.single().unwrap();
+
+    if let Some(Ok(world_position)) = window
+        .cursor_position()
+        .map(|cursor| camera.viewport_to_world_2d(camera_transform, cursor))
+    {
+        commands.insert_resource(MousePos(world_position));
+    }
 }
 
 impl Input {

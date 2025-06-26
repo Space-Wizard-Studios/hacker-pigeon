@@ -1,143 +1,142 @@
 use bevy::prelude::*;
-use crate::components::*;
-use crate::constants::*;
+use bevy_egui::{
+    egui::{self, Align2, Color32, FontId, RichText},
+    EguiContextPass, EguiContexts, EguiPlugin,
+};
 
-pub struct UiPlugin;
+use crate::{
+    health::Health,
+    input::{Input, MousePos},
+    physics::{Grounded, Velocity},
+    player::{ChargingDash, Dashing, Player},
+    score::Score,
+};
 
-impl Plugin for UiPlugin {
+pub struct UIPlugin;
+
+impl Plugin for UIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_ui)
-           .add_systems(Update, (update_hp_ui_system, update_debug_ui_system));
+        app.add_plugins(EguiPlugin {
+            enable_multipass_for_primary_context: true,
+        })
+        .add_systems(EguiContextPass, (ui_system, debug_ui_system));
     }
 }
 
-fn setup_ui(mut commands: Commands) {
-    // HP Text
-    commands.spawn((
-        TextBundle::from_section(
-            "HP: 3/3",
-            TextStyle {
-                font_size: 24.0,
-                color: Color::WHITE,
-                ..default()
-            },
-        )
-        .with_style(Style {
-            position_type: PositionType::Absolute,
-            top: Val::Px(10.0),
-            right: Val::Px(10.0),
-            ..default()
-        }),
-        HpText,
-    ));
-
-    // Debug Text
-    commands.spawn((
-        TextBundle::from_section(
-            "", // Deixado em branco, será preenchido pelo sistema de atualização
-            TextStyle {
-                font_size: 18.0,
-                color: Color::WHITE,
-                ..default()
-            },
-        )
-        .with_style(Style {
-            position_type: PositionType::Absolute,
-            top: Val::Px(10.0),
-            left: Val::Px(10.0),
-            ..default()
-        }),
-        DebugText,
-    ));
-}
-
-fn update_hp_ui_system(
-    player_query: Query<&Health, (With<Player>, Changed<Health>)>, 
-    mut text_query: Query<&mut Text, With<HpText>>
+fn debug_ui_system(
+    mut contexts: EguiContexts,
+    input: Res<Input>,
+    mouse_pos: Res<MousePos>,
+    player: Query<
+        (
+            Entity,
+            &Transform,
+            &Velocity,
+            &Health,
+            Option<&Grounded>,
+            Option<&ChargingDash>,
+            Option<&Dashing>,
+        ),
+        With<Player>,
+    >,
 ) {
-    if let Ok(player_health) = player_query.get_single() {
-        if let Ok(mut text) = text_query.get_single_mut() {
-            text.sections[0].value = format!("HP: {}/{}", player_health.current, player_health.max);
+    if let Some(ctx) = contexts.try_ctx_mut() {
+        let input_dir = input.dir();
+        let mouse_pos = **mouse_pos;
+
+        egui::Area::new("debug input".into())
+            .anchor(Align2::LEFT_TOP, (16., 16.))
+            .show(ctx, |ui| {
+                ui.set_min_width(1000.0);
+                ui.vertical(|ui| {
+                    ui.label(
+                        RichText::new(format!("Input:\n{:.2} {:.2}", input_dir.x, input_dir.y))
+                            .color(Color32::WHITE)
+                            .font(FontId::proportional(16.0)),
+                    );
+                    ui.label(
+                        RichText::new(format!("Mouse:\n{:.0} {:.0}", mouse_pos.x, mouse_pos.y))
+                            .color(Color32::WHITE)
+                            .font(FontId::proportional(16.0)),
+                    );
+                });
+            });
+
+        if let Ok((entity, transform, vel, health, grounded_opt, charging_opt, dashing_opt)) =
+            player.single()
+        {
+            egui::Area::new("debug player".into())
+                .anchor(Align2::LEFT_TOP, (16., 96.))
+                .show(ctx, |ui| {
+                    ui.set_min_width(1000.0);
+                    ui.vertical(|ui| {
+                        ui.label(
+                            RichText::new(format!("entity-idx: {}", entity.index()))
+                                .color(Color32::WHITE)
+                                .font(FontId::proportional(16.0)),
+                        );
+                        ui.label(
+                            RichText::new(format!(
+                                "position:\n{:.2},{:.2}",
+                                transform.translation.x, transform.translation.y
+                            ))
+                            .color(Color32::WHITE)
+                            .font(FontId::proportional(16.0)),
+                        );
+                        ui.label(
+                            RichText::new(format!(
+                                "velocity (current):\n{:.2} {:.2}",
+                                vel.current.x, vel.current.y
+                            ))
+                            .color(Color32::WHITE)
+                            .font(FontId::proportional(16.0)),
+                        );
+                        ui.label(
+                            RichText::new(format!(
+                                "velocity (target):\n{:.2} {:.2}",
+                                vel.target.x, vel.target.y
+                            ))
+                            .color(Color32::WHITE)
+                            .font(FontId::proportional(16.0)),
+                        );
+
+                        ui.label(
+                            RichText::new(format!("hp: {}/{}", health.current, health.max))
+                                .color(Color32::WHITE)
+                                .font(FontId::proportional(16.0)),
+                        );
+
+                        ui.label(
+                            RichText::new(format!("grounded: {}", grounded_opt.is_some()))
+                                .color(Color32::WHITE)
+                                .font(FontId::proportional(16.0)),
+                        );
+                        ui.label(
+                            RichText::new(format!("charging: {}", charging_opt.is_some()))
+                                .color(Color32::WHITE)
+                                .font(FontId::proportional(16.0)),
+                        );
+                        ui.label(
+                            RichText::new(format!("dashing: {}", dashing_opt.is_some()))
+                                .color(Color32::WHITE)
+                                .font(FontId::proportional(16.0)),
+                        );
+                    });
+                });
         }
     }
 }
 
-fn update_debug_ui_system(
-    player_query: Query<(
-        &Transform,
-        &Velocity,
-        Option<&AbilityCooldown>,
-        Option<&Charging>,
-        Option<&Grounded>,
-        Option<&CollisionImmunity>,
-    ), With<Player>>,
-    mut text_query: Query<&mut Text, With<DebugText>>,
-    landing_audio_debug: Res<crate::world::LandingAudioDebug>,
-    drone_debug: Res<crate::components::DroneCollisionDebug>,
-    drone_query: Query<Option<&CollisionImmunity>, With<crate::components::Drone>>,
-) {
-    if let Ok((transform, velocity, cooldown_opt, charging_opt, grounded_opt, player_immunity)) = player_query.get_single() {
-        if let Ok(mut text) = text_query.get_single_mut() {
-            let cd = cooldown_opt.map_or(0.0, |cd| cd.0.remaining_secs());
-            let pos = transform.translation;
-            let vel = velocity.0;
-            let friction = if grounded_opt.is_some() { GROUND_FRICTION } else { FRICTION };
-            let charge_angle = charging_opt.map_or(0.0, |c| c.direction.angle_between(Vec2::X).to_degrees());
-            let state = if grounded_opt.is_some() {
-                "Grounded"
-            } else if charging_opt.is_some() {
-                "Charging"
-            } else {
-                "Airborne"
-            };
-            let audio_dbg = &*landing_audio_debug;
-            let audio_str = if audio_dbg.last_impact_velocity > 0.0 {
-                format!(
-                    "\n[Landing Audio]\nvel: {:.1}  vol: {:.2}  pitch: {:.2}  hop: {}",
-                    audio_dbg.last_impact_velocity,
-                    audio_dbg.last_volume,
-                    audio_dbg.last_playback_rate,
-                    audio_dbg.last_is_hop
-                )
-            } else {
-                String::new()
-            };
-            let drone_dbg = &*drone_debug;
-            let drone_str = if !drone_dbg.last_event.is_empty() {
-                format!(
-                    "\n[Drone Debug]\n{}\nPlayer HP: {}\nDrone HP: {:?}",
-                    drone_dbg.last_event,
-                    drone_dbg.last_player_hp,
-                    drone_dbg.last_drone_hp
-                )
-            } else {
-                String::new()
-            };
-            // Imunidade do player
-            let player_imm_str = if let Some(im) = player_immunity {
-                format!("\nPlayer Imune: {:.2}s", im.timer.remaining_secs())
-            } else {
-                String::new()
-            };
-            // Imunidade de um drone (mostra o primeiro encontrado)
-            let drone_imm_str = if let Some(Some(im)) = drone_query.iter().find(|imm| imm.is_some()) {
-                format!("\nDrone Imune: {:.2}s", im.timer.remaining_secs())
-            } else {
-                String::new()
-            };
-            text.sections[0].value = format!(
-                "CD: {:.2}\nPos: {:.1}, {:.1}\nSpeed: {:.1}, {:.1}\nFriction {:.1}\nDash Angle: {:.1}\nState: {}{}{}{}{}",
-                cd,
-                pos.x, pos.y,
-                vel.x, vel.y,
-                friction,
-                charge_angle,
-                state,
-                audio_str,
-                drone_str,
-                player_imm_str,
-                drone_imm_str
-            );
-        }
+fn ui_system(mut contexts: EguiContexts, score: Res<Score>) {
+    if let Some(ctx) = contexts.try_ctx_mut() {
+        egui::Area::new("score".into())
+            .anchor(Align2::CENTER_TOP, (0., 16.))
+            .show(ctx, |ui| {
+                ui.label(
+                    RichText::new(format!("Score: {}", score.0))
+                        .color(Color32::WHITE)
+                        .font(FontId::proportional(16.0)),
+                );
+            });
     }
 }

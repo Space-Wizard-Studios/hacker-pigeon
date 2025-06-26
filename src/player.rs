@@ -1,259 +1,245 @@
 use bevy::prelude::*;
-use bevy::render::{render_asset::RenderAssetUsages, render_resource::PrimitiveTopology};
 
-use crate::components::*;
-use crate::constants::*;
+use crate::{
+    animation::{Animation, AnimationDir},
+    asset_loader::ImageAssets,
+    game_state::GameState,
+    health::Health,
+    input::{Input, MousePos},
+    physics::{Radius, Velocity},
+    score::Score,
+};
+
+#[derive(Component, Default, Debug)]
+pub struct Player;
+
+#[derive(Component, Default, Debug)]
+pub struct ChargingDash {
+    pub dir: Vec2,
+    pub power: f32,
+}
+
+impl ChargingDash {
+    pub fn new(dir: Vec2) -> Self {
+        Self { dir, power: 0. }
+    }
+}
+
+#[derive(Component, Default, Debug)]
+pub struct Dashing {
+    pub power: Vec2,
+    pub timer: Timer,
+}
+
+impl Dashing {
+    pub fn new(power: Vec2, duration_secs: f32) -> Self {
+        Self {
+            power,
+            timer: Timer::from_seconds(duration_secs, TimerMode::Once),
+        }
+    }
+}
+
+#[derive(Component, Default, Debug)]
+pub struct DashImmunity {
+    pub timer: Timer,
+}
+
+impl DashImmunity {
+    pub fn new(duration_secs: f32) -> Self {
+        Self {
+            timer: Timer::from_seconds(duration_secs, TimerMode::Once),
+        }
+    }
+}
 
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
-    fn build(&self, app: &mut App) {        app.add_systems(Startup, spawn_player)
-            .add_systems(Update, (
-                player_movement_system,
-                player_charge_system,
-                dashing_system,
-                ability_cooldown_system,
-                hop_debounce_system,
-            ));
+    fn build(&self, app: &mut App) {
+        app.add_systems(OnEnter(GameState::GameRunning), spawn_player)
+            .add_systems(
+                Update,
+                (
+                    player_movement_system,
+                    player_dash_system,
+                    player_dash_immunity_system,
+                    player_bounds_system,
+                    player_start_charge_dash_system,
+                    player_charge_dash_system,
+                )
+                    .chain()
+                    .run_if(in_state(GameState::GameRunning)),
+            );
     }
 }
 
 fn spawn_player(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    camera_query: Query<Entity, With<Camera2d>>,
+    mut score: ResMut<Score>,
+    players: Query<Entity, With<Player>>,
+    images: Res<ImageAssets>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
-    // Remove câmeras existentes para garantir só uma
-    for cam in camera_query.iter() {
-        commands.entity(cam).despawn_recursive();
+    log::info!("Spawning player...");
+
+    score.0 = 0;
+
+    for player in &players {
+        commands.entity(player).despawn();
     }
 
-    // Create a triangle mesh for the aim arrow
-    let mut arrow_mesh = Mesh::new(
-        PrimitiveTopology::TriangleList,
-        RenderAssetUsages::default(),
-    );
-    arrow_mesh.insert_attribute(
-        Mesh::ATTRIBUTE_POSITION,
-        vec![[12.0, 0.0, 0.0], [-6.0, 8.0, 0.0], [-6.0, -8.0, 0.0]],
-    );
-    arrow_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; 3]);
-    arrow_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[1.0, 0.5], [0.0, 1.0], [0.0, 0.0]]);
-    let arrow_mesh_handle = meshes.add(arrow_mesh);
-    let arrow_material_handle = materials.add(ColorMaterial::from(Color::YELLOW));
+    let image = images.pigeon_fly_sheet.clone();
+    let layout = TextureAtlasLayout::from_grid(UVec2::splat(32), 4, 1, None, None);
+    let texture_atlas_layout = texture_atlas_layouts.add(layout);
 
-    // Spawn the player with the arrow as a child
-    commands.spawn((
-        SpriteBundle {
-            texture: asset_server.load("hacker_pigeon.png"),
-            sprite: Sprite {
-                custom_size: Some(Vec2::new(32.0, 32.0)),
-                ..default()
-            },
-            ..default()
+    let animation = Animation {
+        first: 0,
+        last: 3,
+        dir: AnimationDir::Forwards,
+        timer: Timer::from_seconds(0.1, TimerMode::Repeating),
+    };
+
+    let sprite = Sprite::from_atlas_image(
+        image,
+        TextureAtlas {
+            layout: texture_atlas_layout,
+            index: animation.first,
         },
+    );
+
+    commands.spawn((
         Player,
         Velocity::default(),
-        Health { current: 3, max: 3 },
-    )).with_children(|parent| {
-        parent.spawn((
-            ColorMesh2dBundle {
-                mesh: arrow_mesh_handle.into(),
-                material: arrow_material_handle,
-                visibility: Visibility::Hidden,
-                transform: Transform::from_xyz(0.0, 0.0, 2.0),
-                ..default()
-            },
-            AimArrow,
-        ));
-    });
+        Transform::from_translation(Vec3::ZERO),
+        Radius(16.),
+        Health::new(3),
+        sprite,
+        animation,
+    ));
 }
 
 fn player_movement_system(
-    mut commands: Commands,
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(Entity, &mut Velocity, Option<&Grounded>, Option<&AbilityCooldown>, Option<&HopDebounce>), (With<Player>, Without<Dashing>, Without<Charging>)>,
-    time: Res<Time>
+    input: Res<Input>,
+    mut player: Query<&mut Velocity, (With<Player>, Without<ChargingDash>, Without<Dashing>)>,
+    time: Res<Time>,
 ) {
-    if let Ok((player_entity, mut velocity, grounded_opt, cooldown_opt, hop_debounce_opt)) = query.get_single_mut() {
-        let mut direction_x = 0.0;
-        if keyboard_input.pressed(KeyCode::KeyA) { direction_x -= 1.0; }
-        if keyboard_input.pressed(KeyCode::KeyD) { direction_x += 1.0; }
+    let dt = time.delta_secs();
 
-        let is_grounded = grounded_opt.is_some();
-        let can_hop = hop_debounce_opt.is_none();
+    if let Ok(mut vel) = player.single_mut() {
+        let input = input.dir();
 
-        // --- Vertical Movement ---
+        vel.target.x += input.x * PLAYER_X_ACCELERATION * dt;
+        vel.target.y += input.y * PLAYER_Y_ACCELERATION * dt;
 
-        // 1. Grounded-Specific Actions
-        if is_grounded && can_hop {
-            // Hopping movement for A/D.
-            if direction_x != 0.0 {
-                velocity.y = GROUND_HOP_FORCE;
-                commands.entity(player_entity).remove::<Grounded>();
-                commands.entity(player_entity).insert(HopDebounce {
-                    timer: Timer::from_seconds(0.1, TimerMode::Once),
-                });
-            }
-        }
+        vel.target.x = vel.target.x.clamp(-PLAYER_MAX_X_SPEED, PLAYER_MAX_X_SPEED);
+        vel.target.y = vel
+            .target
+            .y
+            .clamp(PLAYER_MIN_FALL_SPEED, PLAYER_MAX_RISE_SPEED);
 
-        // 2. Burst (Spacebar) - Can be used on ground or in air.
-        // This is an impulse and will override the ground hop if used on the same frame.
-        if keyboard_input.just_pressed(KeyCode::Space) && cooldown_opt.is_none() {
-            velocity.y = BURST_FORCE;
-            commands.entity(player_entity).insert(AbilityCooldown(Timer::from_seconds(ABILITY_COOLDOWN * 0.75, TimerMode::Once)));
-            if is_grounded {
-                commands.entity(player_entity).remove::<Grounded>();
-            }
-        }
-
-        // 3. Continuous Thrust (W) and Dive (S)
-
-        // Continuous thrust with W (flapping)
-        if keyboard_input.pressed(KeyCode::KeyW) {
-            // Apply upward thrust, but cap the vertical speed from this source.
-            if velocity.y < MAX_AERIAL_VERTICAL_SPEED {
-                 velocity.y += AERIAL_VERTICAL_THRUST * time.delta_seconds();
-            }
-            if is_grounded {
-                commands.entity(player_entity).remove::<Grounded>();
-            }
-        }
-        
-        // Aerial-only dive with S
-        if !is_grounded {
-            if keyboard_input.pressed(KeyCode::KeyS) {
-                velocity.y -= AERIAL_DOWNWARD_FORCE * time.delta_seconds();
-            }
-        }
-
-        // --- Horizontal Movement ---
-        if direction_x != 0.0 {
-            velocity.x += direction_x * PLAYER_ACCELERATION * time.delta_seconds();
+        if input.y > 0. {
+            vel.target.y = vel.target.y.max(0.)
         }
     }
 }
 
-fn player_charge_system(
-    mut commands: Commands,
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
-    windows: Query<&Window>,
-    camera_query: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
-    mut player_query: Query<(Entity, &Transform, &mut Velocity, Option<&mut Charging>, Option<&AbilityCooldown>, Option<&Grounded>), With<Player>>,
-    mut arrow_query: Query<(&mut Transform, &mut Visibility), (With<AimArrow>, Without<Player>)>,
-    time: Res<Time>,
-) {
-    let Ok((entity, player_transform, mut velocity, charging_opt, cooldown_opt, grounded_opt)) = player_query.get_single_mut() else { return };
+fn player_bounds_system(mut player: Query<(&Transform, &mut Velocity), With<Player>>) {
+    if let Ok((transform, mut vel)) = player.single_mut() {
+        let overstep = transform.translation.y - CEILING_Y;
 
-    let window = match windows.iter().next() {
-        Some(w) => w,
-        None => return,
-    };
-    let (camera, camera_transform) = match camera_query.iter().next() {
-        Some(pair) => pair,
-        None => return,
-    };
-    let cursor_pos_world = window.cursor_position()
-        .and_then(|cursor| camera.viewport_to_world(camera_transform, cursor))
-        .map(|ray| ray.origin.truncate());
-
-    if let Some(mut charging) = charging_opt {
-        velocity.0 *= (1.0 - CHARGING_FRICTION * time.delta_seconds()).max(0.0);
-
-        if mouse_button_input.just_released(MouseButton::Left) {
-            let dash_dir = charging.direction;
-            velocity.0 = dash_dir * PLAYER_DASH_SPEED;
-            // Se dash tem componente vertical relevante, remove Grounded
-            if grounded_opt.is_some() && dash_dir.y.abs() > 0.2 {
-                commands.entity(entity).remove::<Grounded>();
-            }
-            commands.entity(entity).remove::<Charging>();
-            commands.entity(entity).insert(Dashing {
-                timer: Timer::from_seconds(PLAYER_DASH_DURATION, TimerMode::Once),
-            });
-            commands.entity(entity).insert(AbilityCooldown(Timer::from_seconds(ABILITY_COOLDOWN, TimerMode::Once)));
-
-            if let Ok((_, mut arrow_visibility)) = arrow_query.get_single_mut() {
-                *arrow_visibility = Visibility::Hidden;
-            }
-        } else if let Some(cursor_pos) = cursor_pos_world {
-            let player_pos = player_transform.translation.truncate();
-            let new_direction = (cursor_pos - player_pos).normalize_or_zero();
-
-            if new_direction != Vec2::ZERO {
-                charging.direction = new_direction;
-                if let Ok((mut arrow_transform, _)) = arrow_query.get_single_mut() {
-                    let offset = 25.0;
-                    arrow_transform.translation = (charging.direction * offset).extend(2.0);
-                    arrow_transform.rotation = Quat::from_rotation_z(charging.direction.y.atan2(charging.direction.x));
-                }
-            }
-        }
-    } else {
-        if mouse_button_input.just_pressed(MouseButton::Left) && cooldown_opt.is_none() {
-            velocity.0 = Vec2::ZERO;
-
-            if let Some(cursor_pos) = cursor_pos_world {
-                let player_pos = player_transform.translation.truncate();
-                let dir_to_cursor = (cursor_pos - player_pos).normalize_or_zero();
-                if dir_to_cursor != Vec2::ZERO {
-                    commands.entity(entity).insert(Charging { direction: dir_to_cursor });
-                }
-            }
-
-            if let Ok((mut arrow_transform, mut arrow_visibility)) = arrow_query.get_single_mut() {
-                *arrow_visibility = Visibility::Visible;
-                let offset = 25.0;
-                let initial_direction = (cursor_pos_world.unwrap_or_default() - player_transform.translation.truncate()).normalize_or_zero();
-                arrow_transform.translation = (initial_direction * offset).extend(2.0);
-                arrow_transform.rotation = Quat::from_rotation_z(initial_direction.y.atan2(initial_direction.x));
-            }
+        if overstep > 0.0 {
+            let pull = -overstep * SPRING_FORCE;
+            vel.target.y = pull.clamp(MAX_PULL, 0.0);
         }
     }
 }
 
-fn ability_cooldown_system(
+fn player_start_charge_dash_system(
     mut commands: Commands,
-    time: Res<Time>,
-    mut query: Query<(Entity, &mut Sprite, Option<&mut AbilityCooldown>), With<Player>>,
+    input: Res<Input>,
+    mouse_pos: Res<MousePos>,
+    mut player: Query<(Entity, &Transform, &mut Velocity), (With<Player>, Without<ChargingDash>)>,
 ) {
-    if let Ok((entity, mut sprite, cooldown_opt)) = query.get_single_mut() {
-        if let Some(mut cooldown) = cooldown_opt {
-            sprite.color = Color::BLUE;
-            cooldown.0.tick(time.delta());
-            if cooldown.0.finished() {
-                commands.entity(entity).remove::<AbilityCooldown>();
-            }
+    if let Ok((entity, transform, mut vel)) = player.single_mut() {
+        if input.dash() {
+            vel.target = Vec2::ZERO;
+
+            let pos = transform.translation.xy();
+            let dir = (**mouse_pos - pos).normalize_or_zero();
+            commands.entity(entity).insert(ChargingDash::new(dir));
+        }
+    }
+}
+
+fn player_charge_dash_system(
+    mut commands: Commands,
+    input: Res<Input>,
+    mouse_pos: Res<MousePos>,
+    mut player: Query<(Entity, &Transform, &mut ChargingDash), (With<Player>, Without<Dashing>)>,
+    time: Res<Time>,
+) {
+    let dt = time.delta_secs();
+
+    if let Ok((entity, transform, mut charging)) = player.single_mut() {
+        if input.dash() {
+            let pos = transform.translation.xy();
+            let dir = (**mouse_pos - pos).normalize_or_zero();
+            charging.dir = dir;
+            charging.power += dt / PLAYER_CHARGING_POWER_DURATION;
         } else {
-            sprite.color = Color::rgb(0.8, 0.8, 0.8);
+            let dash_power = charging.power.min(1.0);
+            commands.entity(entity).remove::<ChargingDash>();
+            commands.entity(entity).insert(Dashing::new(
+                charging.dir * dash_power,
+                PLAYER_DASH_DURATION,
+            ));
+            commands
+                .entity(entity)
+                .insert(DashImmunity::new(PLAYER_DASH_IMMUNITY_DURATION));
         }
     }
 }
 
-fn dashing_system(
+fn player_dash_system(
     mut commands: Commands,
+    mut player: Query<(Entity, &mut Velocity, &mut Dashing), With<Player>>,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Dashing)>,
 ) {
-    for (entity, mut dashing) in query.iter_mut() {
-        dashing.timer.tick(time.delta());
-        if dashing.timer.finished() {
+    if let Ok((entity, mut vel, mut dash)) = player.single_mut() {
+        vel.target = dash.power * PLAYER_DASH_SPEED;
+
+        dash.timer.tick(time.delta());
+        if dash.timer.finished() {
+            vel.target = dash.power.normalize_or_zero() * PLAYER_MAX_X_SPEED;
             commands.entity(entity).remove::<Dashing>();
         }
     }
 }
 
-fn hop_debounce_system(
+fn player_dash_immunity_system(
     mut commands: Commands,
+    mut player: Query<(Entity, &mut DashImmunity), With<Player>>,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut HopDebounce)>
 ) {
-    for (entity, mut hop_debounce) in query.iter_mut() {
-        hop_debounce.timer.tick(time.delta());
-        if hop_debounce.timer.finished() {
-            commands.entity(entity).remove::<HopDebounce>();
+    if let Ok((entity, mut dash)) = player.single_mut() {
+        dash.timer.tick(time.delta());
+        if dash.timer.finished() {
+            commands.entity(entity).remove::<DashImmunity>();
         }
     }
 }
+
+const CEILING_Y: f32 = 160.0;
+const SPRING_FORCE: f32 = 8.0;
+const MAX_PULL: f32 = -360.0;
+
+const PLAYER_X_ACCELERATION: f32 = 2200.0;
+const PLAYER_Y_ACCELERATION: f32 = 340.0;
+const PLAYER_MAX_X_SPEED: f32 = 200.0;
+const PLAYER_MIN_FALL_SPEED: f32 = -680.0;
+const PLAYER_MAX_RISE_SPEED: f32 = 480.0;
+const PLAYER_CHARGING_POWER_DURATION: f32 = 0.5;
+const PLAYER_DASH_DURATION: f32 = 0.1;
+const PLAYER_DASH_IMMUNITY_DURATION: f32 = 1.;
+const PLAYER_DASH_SPEED: f32 = 3200.0;
