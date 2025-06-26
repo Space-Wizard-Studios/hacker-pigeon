@@ -1,7 +1,7 @@
 use bevy::prelude::*;
+use std::time::Duration;
 
 use crate::{
-    animation::Blink,
     enemy::{Enemy, WeakSpot},
     game_state::GameState,
     health::Health,
@@ -37,6 +37,19 @@ impl CollisionImmunity {
     }
 }
 
+#[derive(Component, Default, Debug)]
+pub struct Blink {
+    pub timer: Timer,
+}
+
+impl Blink {
+    pub fn new(duration_millis: u64) -> Self {
+        Self {
+            timer: Timer::new(Duration::from_millis(duration_millis), TimerMode::Repeating),
+        }
+    }
+}
+
 pub struct PhysicsPlugin;
 
 impl Plugin for PhysicsPlugin {
@@ -51,6 +64,7 @@ impl Plugin for PhysicsPlugin {
                 player_damage_drone_system,
                 player_drone_collision_system,
                 collision_immunity_system,
+                blink_system,
             )
                 .chain()
                 .run_if(in_state(GameState::GameRunning)),
@@ -177,11 +191,12 @@ fn player_damage_drone_system(
         for (enemy, enemy_transform, radius, weak_spot) in enemies.iter() {
             let enemy_pos = enemy_transform.translation;
             let enemy_size = **radius;
+            let spot_size = weak_spot.size;
 
-            let weak_spot_pos = enemy_pos + weak_spot.to_dir();
+            let weak_spot_pos = enemy_pos + weak_spot.location.to_dir() * enemy_size;
             let dist_sq = (player_pos - weak_spot_pos).length_squared();
 
-            let threshold = (player_size + enemy_size) * (player_size + enemy_size);
+            let threshold = (player_size + spot_size) * (player_size + spot_size);
             if dist_sq <= threshold {
                 score.0 += 1;
                 commands.entity(enemy).despawn();
@@ -200,8 +215,17 @@ fn collision_immunity_system(
         if immunity.timer.finished() {
             commands.entity(entity).remove::<CollisionImmunity>();
             commands.entity(entity).remove::<Blink>();
-            sprite.color = Color::WHITE;
+            sprite.color.set_alpha(1.);
         }
+    }
+}
+
+fn blink_system(mut query: Query<(&mut Blink, &mut Sprite)>, time: Res<Time>) {
+    for (mut blink, mut sprite) in query.iter_mut() {
+        blink.timer.tick(time.delta());
+
+        let alpha = if blink.timer.finished() { 1. } else { 0. };
+        sprite.color.set_alpha(alpha);
     }
 }
 

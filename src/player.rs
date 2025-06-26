@@ -41,6 +41,12 @@ impl Dashing {
 }
 
 #[derive(Component, Default, Debug)]
+pub struct DashDirectionArrow {
+    pub direction: Vec2,
+    pub visibility: bool,
+}
+
+#[derive(Component, Default, Debug)]
 pub struct DashImmunity {
     pub timer: Timer,
 }
@@ -67,6 +73,7 @@ impl Plugin for PlayerPlugin {
                     player_bounds_system,
                     player_start_charge_dash_system,
                     player_charge_dash_system,
+                    dash_arrow_system,
                 )
                     .chain()
                     .run_if(in_state(GameState::GameRunning)),
@@ -108,15 +115,27 @@ fn spawn_player(
         },
     );
 
-    commands.spawn((
-        Player,
-        Velocity::default(),
-        Transform::from_translation(Vec3::ZERO),
-        Radius(16.),
-        Health::new(3),
-        sprite,
-        animation,
-    ));
+    commands
+        .spawn((
+            Player,
+            Velocity::default(),
+            Transform::from_translation(Vec3::ZERO),
+            Radius(16.),
+            Health::new(3),
+            sprite,
+            animation,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                DashDirectionArrow::default(),
+                Transform::from_translation(Vec3::ZERO),
+                Sprite {
+                    color: Color::srgba_u8(200, 200, 10, 0),
+                    custom_size: Some(Vec2::splat(6.)),
+                    ..default()
+                },
+            ));
+        });
 }
 
 fn player_movement_system(
@@ -137,10 +156,6 @@ fn player_movement_system(
             .target
             .y
             .clamp(PLAYER_MIN_FALL_SPEED, PLAYER_MAX_RISE_SPEED);
-
-        if input.y > 0. {
-            vel.target.y = vel.target.y.max(0.)
-        }
     }
 }
 
@@ -159,15 +174,27 @@ fn player_start_charge_dash_system(
     mut commands: Commands,
     input: Res<Input>,
     mouse_pos: Res<MousePos>,
-    mut player: Query<(Entity, &Transform, &mut Velocity), (With<Player>, Without<ChargingDash>)>,
+    mut player: Query<
+        (Entity, &Transform, &mut Velocity, &Children),
+        (With<Player>, Without<ChargingDash>),
+    >,
+    mut arrows: Query<&mut DashDirectionArrow>,
 ) {
-    if let Ok((entity, transform, mut vel)) = player.single_mut() {
+    if let Ok((entity, transform, mut vel, children)) = player.single_mut() {
         if input.dash() {
             vel.target = Vec2::ZERO;
 
             let pos = transform.translation.xy();
             let dir = (**mouse_pos - pos).normalize_or_zero();
             commands.entity(entity).insert(ChargingDash::new(dir));
+
+            for &child in children.into_iter() {
+                if let Ok(mut arrow) = arrows.get_mut(child) {
+                    arrow.direction = dir;
+                    arrow.visibility = true;
+                    break;
+                }
+            }
         }
     }
 }
@@ -176,17 +203,29 @@ fn player_charge_dash_system(
     mut commands: Commands,
     input: Res<Input>,
     mouse_pos: Res<MousePos>,
-    mut player: Query<(Entity, &Transform, &mut ChargingDash), (With<Player>, Without<Dashing>)>,
+    mut player: Query<
+        (Entity, &Transform, &mut ChargingDash, &Children),
+        (With<Player>, Without<Dashing>),
+    >,
+    mut arrows: Query<&mut DashDirectionArrow>,
     time: Res<Time>,
 ) {
     let dt = time.delta_secs();
 
-    if let Ok((entity, transform, mut charging)) = player.single_mut() {
+    if let Ok((entity, transform, mut charging, children)) = player.single_mut() {
         if input.dash() {
             let pos = transform.translation.xy();
             let dir = (**mouse_pos - pos).normalize_or_zero();
             charging.dir = dir;
             charging.power += dt / PLAYER_CHARGING_POWER_DURATION;
+
+            for &child in children.into_iter() {
+                if let Ok(mut arrow) = arrows.get_mut(child) {
+                    arrow.direction = dir;
+                    arrow.visibility = true;
+                    break;
+                }
+            }
         } else {
             let dash_power = charging.power.min(1.0);
             commands.entity(entity).remove::<ChargingDash>();
@@ -197,7 +236,25 @@ fn player_charge_dash_system(
             commands
                 .entity(entity)
                 .insert(DashImmunity::new(PLAYER_DASH_IMMUNITY_DURATION));
+
+            for &child in children.into_iter() {
+                if let Ok(mut arrow) = arrows.get_mut(child) {
+                    arrow.visibility = false;
+                    break;
+                }
+            }
         }
+    }
+}
+
+fn dash_arrow_system(mut arrows: Query<(&DashDirectionArrow, &mut Transform, &mut Sprite)>) {
+    for (arrow, mut transform, mut sprite) in arrows.iter_mut() {
+        let pos = arrow.direction * 32.;
+        transform.translation.x = pos.x;
+        transform.translation.y = pos.y;
+
+        let alpha = if arrow.visibility { 1. } else { 0. };
+        sprite.color.set_alpha(alpha);
     }
 }
 
@@ -231,8 +288,8 @@ fn player_dash_immunity_system(
 }
 
 const CEILING_Y: f32 = 160.0;
-const SPRING_FORCE: f32 = 8.0;
-const MAX_PULL: f32 = -360.0;
+const SPRING_FORCE: f32 = 6.0;
+const MAX_PULL: f32 = -280.0;
 
 const PLAYER_X_ACCELERATION: f32 = 2200.0;
 const PLAYER_Y_ACCELERATION: f32 = 340.0;
@@ -240,6 +297,6 @@ const PLAYER_MAX_X_SPEED: f32 = 200.0;
 const PLAYER_MIN_FALL_SPEED: f32 = -680.0;
 const PLAYER_MAX_RISE_SPEED: f32 = 480.0;
 const PLAYER_CHARGING_POWER_DURATION: f32 = 0.5;
-const PLAYER_DASH_DURATION: f32 = 0.1;
+const PLAYER_DASH_DURATION: f32 = 0.12;
 const PLAYER_DASH_IMMUNITY_DURATION: f32 = 1.;
-const PLAYER_DASH_SPEED: f32 = 3200.0;
+const PLAYER_DASH_SPEED: f32 = 3000.0;

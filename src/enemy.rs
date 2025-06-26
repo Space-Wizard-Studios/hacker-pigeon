@@ -29,8 +29,20 @@ impl WeakSpotLocation {
     }
 }
 
-#[derive(Component, Default, Debug, Deref, DerefMut)]
-pub struct WeakSpot(pub WeakSpotLocation);
+#[derive(Component, Default, Debug)]
+pub struct WeakSpot {
+    pub location: WeakSpotLocation,
+    pub size: f32,
+}
+
+impl WeakSpot {
+    pub fn new(size: f32) -> Self {
+        Self {
+            location: WeakSpotLocation::default(),
+            size,
+        }
+    }
+}
 
 pub struct EnemyPlugin;
 
@@ -41,8 +53,8 @@ impl Plugin for EnemyPlugin {
 }
 
 fn spawn_enemy(mut commands: Commands) {
-    let weak_spot = WeakSpot::default();
-    let weak_spot_pos = weak_spot.to_dir() * 16.;
+    let weak_spot = WeakSpot::new(16.);
+    let weak_spot_pos = weak_spot.location.to_dir() * 16.;
 
     commands
         .spawn((
