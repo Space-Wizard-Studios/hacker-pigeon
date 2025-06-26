@@ -233,7 +233,8 @@ fn main() {
                 friction_system,
                 apply_velocity_system,
                 apply_grounding_system,
-                drone_player_collision_system,
+                player_damage_drone_system,
+                player_drone_collision_system,
                 collision_immunity_system,
                 blink_system,
             )
@@ -578,31 +579,56 @@ fn player_dash_system(
     }
 }
 
-fn drone_player_collision_system(
+fn player_drone_collision_system(
     mut commands: Commands,
     mut player: Query<
         (Entity, &Transform, &Radius, &mut Health),
-        (With<Player>, Without<CollisionImmunity>),
+        (With<Player>, Without<CollisionImmunity>, Without<Dashing>),
     >,
-    enemies: Query<(&Transform, &Radius, &WeakSpot), With<Enemy>>,
+    enemies: Query<(&Transform, &Radius), With<Enemy>>,
 ) {
-    if let Ok((entity, player, radius, mut health)) = player.single_mut() {
-        let player_pos = player.translation;
+    if let Ok((player, player_transform, radius, mut health)) = player.single_mut() {
+        let player_pos = player_transform.translation;
         let player_size = **radius;
 
-        for (enemy, radius, weak_spot) in enemies.iter() {
-            let enemy_pos = enemy.translation;
+        for (enemy_transform, radius) in enemies.iter() {
+            let enemy_pos = enemy_transform.translation;
             let enemy_size = **radius;
 
-            let dist_sq = (player_pos - enemy_pos).length_squared();
             let threshold = (player_size + enemy_size) * (player_size + enemy_size);
+
+            let dist_sq = (player_pos - enemy_pos).length_squared();
             if dist_sq <= threshold {
-                commands.entity(entity).insert(CollisionImmunity::new(1.0));
-                commands.entity(entity).insert(Blink::new(50));
+                commands.entity(player).insert(CollisionImmunity::new(1.0));
+                commands.entity(player).insert(Blink::new(50));
 
                 if health.current > 0 {
                     health.current -= 1;
                 }
+            }
+        }
+    }
+}
+
+fn player_damage_drone_system(
+    mut commands: Commands,
+    mut player: Query<(&Transform, &Radius), (With<Player>, With<Dashing>)>,
+    enemies: Query<(Entity, &Transform, &Radius, &WeakSpot), With<Enemy>>,
+) {
+    if let Ok((player_transform, radius)) = player.single_mut() {
+        let player_pos = player_transform.translation;
+        let player_size = **radius;
+
+        for (enemy, enemy_transform, radius, weak_spot) in enemies.iter() {
+            let enemy_pos = enemy_transform.translation;
+            let enemy_size = **radius;
+
+            let weak_spot_pos = enemy_pos + weak_spot.to_dir();
+            let dist_sq = (player_pos - weak_spot_pos).length_squared();
+
+            let threshold = (player_size + enemy_size) * (player_size + enemy_size);
+            if dist_sq <= threshold {
+                commands.entity(enemy).despawn();
             }
         }
     }
