@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use args::Args;
 use bevy::{
     log::{Level, LogPlugin},
@@ -38,6 +40,32 @@ struct Score(u32);
 #[derive(Component, Default, Debug)]
 struct Player;
 
+#[derive(Component, Default, Debug)]
+struct Enemy;
+
+#[derive(Default, Debug)]
+enum WeakSpotLocation {
+    North,
+    #[default]
+    South,
+    West,
+    East,
+}
+
+impl WeakSpotLocation {
+    fn to_dir(&self) -> Vec3 {
+        match self {
+            WeakSpotLocation::North => Vec3::Y,
+            WeakSpotLocation::South => Vec3::NEG_Y,
+            WeakSpotLocation::West => Vec3::X,
+            WeakSpotLocation::East => Vec3::NEG_X,
+        }
+    }
+}
+
+#[derive(Component, Default, Debug, Deref, DerefMut)]
+struct WeakSpot(WeakSpotLocation);
+
 #[derive(Default, Debug)]
 enum AnimationDir {
     #[default]
@@ -59,8 +87,40 @@ struct Velocity {
     target: Vec2,
 }
 
+#[derive(Component, Default, Debug, Deref, DerefMut)]
+struct Radius(f32);
+
+#[derive(Component, Default, Debug)]
+struct CollisionImmunity {
+    timer: Timer,
+}
+
+impl CollisionImmunity {
+    fn new(duration_secs: f32) -> Self {
+        Self {
+            timer: Timer::from_seconds(duration_secs, TimerMode::Once),
+        }
+    }
+}
+
+#[derive(Component, Default, Debug)]
+struct Blink {
+    timer: Timer,
+}
+
+impl Blink {
+    fn new(duration_millis: u64) -> Self {
+        Self {
+            timer: Timer::new(Duration::from_millis(duration_millis), TimerMode::Repeating),
+        }
+    }
+}
+
 #[derive(Component, Default, Debug)]
 struct Grounded;
+
+#[derive(Component, Default, Debug)]
+struct Airborne;
 
 #[derive(Component, Default, Debug)]
 struct ChargingDash {
@@ -147,7 +207,7 @@ fn main() {
         .add_systems(EguiContextPass, ui_system)
         .add_systems(
             OnEnter(GameState::GameRunning),
-            (setup, spawn_player).chain(),
+            (setup, spawn_player, spawn_enemy).chain(),
         )
         .add_systems(
             Update,
@@ -172,11 +232,17 @@ fn main() {
                 friction_system,
                 apply_velocity_system,
                 apply_grounding_system,
+                drone_player_collision_system,
+                collision_immunity_system,
+                blink_system,
             )
                 .chain()
                 .run_if(in_state(GameState::GameRunning)),
         )
-        .add_systems(Update, animate_player)
+        .add_systems(
+            Update,
+            animate_player.run_if(in_state(GameState::GameRunning)),
+        )
         .run();
 }
 
@@ -199,8 +265,8 @@ fn setup(mut commands: Commands, mut settings: ResMut<FramepaceSettings>) {
 fn spawn_player(
     mut commands: Commands,
     mut score: ResMut<Score>,
-    images: Res<ImageAssets>,
     players: Query<Entity, With<Player>>,
+    images: Res<ImageAssets>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     log::info!("Spawning player...");
@@ -234,10 +300,42 @@ fn spawn_player(
         Player,
         Velocity::default(),
         Transform::from_translation(Vec3::ZERO),
+        Radius(16.),
         Health::new(3),
         sprite,
         animation,
     ));
+}
+
+fn spawn_enemy(mut commands: Commands) {
+    let weak_spot = WeakSpot::default();
+    let weak_spot_pos = weak_spot.to_dir() * 16.;
+
+    commands
+        .spawn((
+            Enemy,
+            Velocity::default(),
+            Transform::from_translation(Vec3::new(0., 200., 0.)),
+            Radius(16.),
+            Health::new(1),
+            weak_spot,
+            Airborne,
+            Sprite {
+                color: Color::srgb_u8(200, 10, 10),
+                custom_size: Some(Vec2::splat(32.)),
+                ..default()
+            },
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Transform::from_translation(Vec3::new(weak_spot_pos.x, weak_spot_pos.y, 1.)),
+                Sprite {
+                    color: Color::srgb_u8(200, 200, 10),
+                    custom_size: Some(Vec2::splat(12.)),
+                    ..default()
+                },
+            ));
+        });
 }
 
 fn animate_player(time: Res<Time>, mut player: Query<(&mut Animation, &mut Sprite, &Velocity)>) {
@@ -279,6 +377,7 @@ fn ui_system(
             Entity,
             &Transform,
             &Velocity,
+            &Health,
             Option<&Grounded>,
             Option<&ChargingDash>,
             Option<&Dashing>,
@@ -318,7 +417,7 @@ fn ui_system(
                 });
             });
 
-        if let Ok((entity, transform, vel, grounded_opt, charging_opt, dashing_opt)) =
+        if let Ok((entity, transform, vel, health, grounded_opt, charging_opt, dashing_opt)) =
             player.single()
         {
             egui::Area::new("debug player".into())
@@ -354,6 +453,12 @@ fn ui_system(
                             ))
                             .color(Color32::WHITE)
                             .font(FontId::proportional(16.0)),
+                        );
+
+                        ui.label(
+                            RichText::new(format!("hp: {}/{}", health.current, health.max))
+                                .color(Color32::WHITE)
+                                .font(FontId::proportional(16.0)),
                         );
 
                         ui.label(
@@ -460,8 +565,67 @@ fn player_dash_system(
     }
 }
 
+fn drone_player_collision_system(
+    mut commands: Commands,
+    mut player: Query<
+        (Entity, &Transform, &Radius, &mut Health),
+        (With<Player>, Without<CollisionImmunity>),
+    >,
+    enemies: Query<(&Transform, &Radius, &WeakSpot), With<Enemy>>,
+) {
+    if let Ok((entity, player, radius, mut health)) = player.single_mut() {
+        let player_pos = player.translation;
+        let player_size = **radius;
+
+        for (enemy, radius, weak_spot) in enemies.iter() {
+            let enemy_pos = enemy.translation;
+            let enemy_size = **radius;
+
+            let dist_sq = (player_pos - enemy_pos).length_squared();
+            let threshold = (player_size + enemy_size) * (player_size + enemy_size);
+            if dist_sq <= threshold {
+                commands.entity(entity).insert(CollisionImmunity::new(1.0));
+                commands.entity(entity).insert(Blink::new(50));
+
+                if health.current > 0 {
+                    health.current -= 1;
+                }
+            }
+        }
+    }
+}
+
+fn collision_immunity_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut CollisionImmunity, &mut Sprite)>,
+    time: Res<Time>,
+) {
+    for (entity, mut immunity, mut sprite) in query.iter_mut() {
+        immunity.timer.tick(time.delta());
+        if immunity.timer.finished() {
+            commands.entity(entity).remove::<CollisionImmunity>();
+            commands.entity(entity).remove::<Blink>();
+            sprite.color = Color::WHITE;
+        }
+    }
+}
+
+fn blink_system(mut query: Query<(&mut Blink, &mut Sprite)>, time: Res<Time>) {
+    for (mut blink, mut sprite) in query.iter_mut() {
+        blink.timer.tick(time.delta());
+        sprite.color = COLLISION_IMMUNITY_BLINK_COLOR;
+
+        if blink.timer.finished() {
+            sprite.color = Color::WHITE;
+        }
+    }
+}
+
 fn gravity_system(
-    mut query: Query<(&mut Velocity, Option<&ChargingDash>), (Without<Grounded>, Without<Dashing>)>,
+    mut query: Query<
+        (&mut Velocity, Option<&ChargingDash>),
+        (Without<Grounded>, Without<Dashing>, Without<Airborne>),
+    >,
     time: Res<Time>,
 ) {
     let dt = time.delta_secs();
@@ -543,3 +707,5 @@ const PLAYER_CHARGING_GRAVITY_MULTIPLIER: f32 = 0.05;
 const PLAYER_CHARGING_POWER_DURATION: f32 = 0.5;
 const PLAYER_DASH_DURATION: f32 = 0.1;
 const PLAYER_DASH_SPEED: f32 = 3200.0;
+
+const COLLISION_IMMUNITY_BLINK_COLOR: Color = Color::srgba_u8(255, 0, 0, 0);
