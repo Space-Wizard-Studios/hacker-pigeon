@@ -44,6 +44,7 @@ impl Dashing {
 pub struct DashDirectionArrow {
     pub direction: Vec2,
     pub visibility: bool,
+    pub size: f32,
 }
 
 #[derive(Component, Default, Debug)]
@@ -192,6 +193,7 @@ fn player_start_charge_dash_system(
                 if let Ok(mut arrow) = arrows.get_mut(child) {
                     arrow.direction = dir;
                     arrow.visibility = true;
+                    arrow.size = 0.;
                     break;
                 }
             }
@@ -216,13 +218,16 @@ fn player_charge_dash_system(
         if input.dash() {
             let pos = transform.translation.xy();
             let dir = (**mouse_pos - pos).normalize_or_zero();
+            let power = dt / PLAYER_CHARGING_POWER_DURATION;
+
             charging.dir = dir;
-            charging.power += dt / PLAYER_CHARGING_POWER_DURATION;
+            charging.power += power;
 
             for &child in children.into_iter() {
                 if let Ok(mut arrow) = arrows.get_mut(child) {
                     arrow.direction = dir;
                     arrow.visibility = true;
+                    arrow.size += power;
                     break;
                 }
             }
@@ -255,6 +260,9 @@ fn dash_arrow_system(mut arrows: Query<(&DashDirectionArrow, &mut Transform, &mu
 
         let alpha = if arrow.visibility { 1. } else { 0. };
         sprite.color.set_alpha(alpha);
+
+        let size = arrow.size.min(1.);
+        transform.scale = Vec3::splat(size);
     }
 }
 
