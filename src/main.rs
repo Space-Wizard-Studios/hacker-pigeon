@@ -28,8 +28,8 @@ enum GameState {
 
 #[derive(AssetCollection, Resource)]
 struct ImageAssets {
-    #[asset(path = "hacker_pigeon.png")]
-    hacker_pigeon: Handle<Image>,
+    #[asset(path = "pigeon/flying/spritesheet.png")]
+    pigeon_fly_sheet: Handle<Image>,
 }
 
 #[derive(Resource, Default, Debug)]
@@ -37,6 +37,21 @@ struct Score(u32);
 
 #[derive(Component, Default, Debug)]
 struct Player;
+
+#[derive(Default, Debug)]
+enum AnimationDir {
+    #[default]
+    Forwards,
+    Backwards,
+}
+
+#[derive(Component, Default, Debug)]
+struct Animation {
+    first: usize,
+    last: usize,
+    dir: AnimationDir,
+    timer: Timer,
+}
 
 #[derive(Component, Default, Debug)]
 struct Velocity {
@@ -55,10 +70,7 @@ struct ChargingDash {
 
 impl ChargingDash {
     fn new(dir: Vec2) -> Self {
-        Self {
-            dir: dir,
-            power: 0.,
-        }
+        Self { dir, power: 0. }
     }
 }
 
@@ -107,6 +119,7 @@ fn main() {
                     level: Level::INFO,
                     ..Default::default()
                 })
+                .set(ImagePlugin::default_nearest())
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         fit_canvas_to_parent: true,
@@ -163,6 +176,7 @@ fn main() {
                 .chain()
                 .run_if(in_state(GameState::GameRunning)),
         )
+        .add_systems(Update, animate_player)
         .run();
 }
 
@@ -173,7 +187,7 @@ fn setup(mut commands: Commands, mut settings: ResMut<FramepaceSettings>) {
     let cam = Camera2d;
     let projection = Projection::Orthographic(OrthographicProjection {
         scaling_mode: ScalingMode::FixedVertical {
-            viewport_height: 10.,
+            viewport_height: 480.,
         },
         ..OrthographicProjection::default_2d()
     });
@@ -187,6 +201,7 @@ fn spawn_player(
     mut score: ResMut<Score>,
     images: Res<ImageAssets>,
     players: Query<Entity, With<Player>>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     log::info!("Spawning player...");
 
@@ -196,17 +211,62 @@ fn spawn_player(
         commands.entity(player).despawn();
     }
 
+    let image = images.pigeon_fly_sheet.clone();
+    let layout = TextureAtlasLayout::from_grid(UVec2::splat(32), 4, 1, None, None);
+    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+
+    let animation = Animation {
+        first: 0,
+        last: 3,
+        dir: AnimationDir::Forwards,
+        timer: Timer::from_seconds(0.1, TimerMode::Repeating),
+    };
+
+    let sprite = Sprite::from_atlas_image(
+        image,
+        TextureAtlas {
+            layout: texture_atlas_layout,
+            index: animation.first,
+        },
+    );
+
     commands.spawn((
         Player,
         Velocity::default(),
         Transform::from_translation(Vec3::ZERO),
         Health::new(3),
-        Sprite {
-            image: images.hacker_pigeon.clone(),
-            custom_size: Some(Vec2::new(0.5, 0.5)),
-            ..default()
-        },
+        sprite,
+        animation,
     ));
+}
+
+fn animate_player(time: Res<Time>, mut player: Query<(&mut Animation, &mut Sprite, &Velocity)>) {
+    if let Ok((mut anim, mut sprite, vel)) = player.single_mut() {
+        if vel.target.x.abs() != 0. {
+            sprite.flip_x = vel.target.x < 0.;
+        }
+
+        anim.timer.tick(time.delta());
+
+        if anim.timer.just_finished() {
+            if let Some(atlas) = &mut sprite.texture_atlas {
+                match anim.dir {
+                    AnimationDir::Forwards => {
+                        atlas.index += 1;
+                        if atlas.index == anim.last {
+                            anim.dir = AnimationDir::Backwards;
+                        }
+                    }
+                    AnimationDir::Backwards => {
+                        atlas.index -= 1;
+                        if atlas.index == anim.first {
+                            anim.dir = AnimationDir::Forwards;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn ui_system(
@@ -326,7 +386,8 @@ fn player_movement_system(
 
     if let Ok(mut vel) = player.single_mut() {
         let input = input.dir();
-        vel.target += input * PLAYER_ACCELERATION * dt;
+        vel.target.x += input.x * PLAYER_X_ACCELERATION * dt;
+        vel.target.y += input.y * PLAYER_Y_ACCELERATION * dt;
 
         vel.target.x = vel.target.x.clamp(-PLAYER_MAX_X_SPEED, PLAYER_MAX_X_SPEED);
         vel.target.y = vel
@@ -471,13 +532,14 @@ const MOVEMENT_SMOOTHING: f32 = 8.0;
 const AIR_FRICTION: f32 = 0.4;
 const GROUND_FRICTION: f32 = 6.0;
 
-const FLOOR_Y: f32 = -4.0;
+const FLOOR_Y: f32 = -160.0;
 
-const PLAYER_ACCELERATION: f32 = 60.0;
-const PLAYER_MAX_X_SPEED: f32 = 6.0;
-const PLAYER_MIN_FALL_SPEED: f32 = -16.0;
-const PLAYER_MAX_RISE_SPEED: f32 = 12.0;
+const PLAYER_X_ACCELERATION: f32 = 2400.0;
+const PLAYER_Y_ACCELERATION: f32 = 360.0;
+const PLAYER_MAX_X_SPEED: f32 = 240.0;
+const PLAYER_MIN_FALL_SPEED: f32 = -680.0;
+const PLAYER_MAX_RISE_SPEED: f32 = 480.0;
 const PLAYER_CHARGING_GRAVITY_MULTIPLIER: f32 = 0.05;
 const PLAYER_CHARGING_POWER_DURATION: f32 = 0.5;
 const PLAYER_DASH_DURATION: f32 = 0.1;
-const PLAYER_DASH_SPEED: f32 = 80.0;
+const PLAYER_DASH_SPEED: f32 = 3200.0;
