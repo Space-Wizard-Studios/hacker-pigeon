@@ -218,6 +218,7 @@ fn main() {
             Update,
             (
                 player_movement_system,
+                player_bounds_system,
                 player_dash_system,
                 player_start_charge_dash_system,
                 player_charge_dash_system,
@@ -491,6 +492,7 @@ fn player_movement_system(
 
     if let Ok(mut vel) = player.single_mut() {
         let input = input.dir();
+
         vel.target.x += input.x * PLAYER_X_ACCELERATION * dt;
         vel.target.y += input.y * PLAYER_Y_ACCELERATION * dt;
 
@@ -502,6 +504,17 @@ fn player_movement_system(
 
         if input.y > 0. {
             vel.target.y = vel.target.y.max(0.)
+        }
+    }
+}
+
+fn player_bounds_system(mut player: Query<(&Transform, &mut Velocity), With<Player>>) {
+    if let Ok((transform, mut vel)) = player.single_mut() {
+        let overstep = transform.translation.y - CEILING_Y;
+
+        if overstep > 0.0 {
+            let pull = -overstep * SPRING_FORCE;
+            vel.target.y = pull.clamp(MAX_PULL, 0.0);
         }
     }
 }
@@ -697,6 +710,9 @@ const AIR_FRICTION: f32 = 0.4;
 const GROUND_FRICTION: f32 = 6.0;
 
 const FLOOR_Y: f32 = -160.0;
+const CEILING_Y: f32 = 160.0;
+const SPRING_FORCE: f32 = 8.0;
+const MAX_PULL: f32 = -360.0;
 
 const PLAYER_X_ACCELERATION: f32 = 2400.0;
 const PLAYER_Y_ACCELERATION: f32 = 360.0;
