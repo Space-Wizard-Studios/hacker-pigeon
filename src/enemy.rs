@@ -78,15 +78,9 @@ impl WeakSpot {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 struct EnemyRespawnTimer {
     timer: Option<Timer>,
-}
-
-impl Default for EnemyRespawnTimer {
-    fn default() -> Self {
-        Self { timer: None }
-    }
 }
 
 pub struct EnemyPlugin;

@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use args::Args;
 use bevy::{
     log::{Level, LogPlugin},
