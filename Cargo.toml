@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 bevy = { version = "0.16.1", features = ["wav"] }
-bevy_asset_loader = "0.23.0"
+bevy_asset_loader = { version = "0.23.0", features = ["2d"] }
 bevy_egui = { version = "0.34.1", default-features = false, features = [
 	"default_fonts",
 	"render",
@@ -14,6 +14,8 @@ bevy_framepace = "0.19.1"
 clap = { version = "4.5.40", features = ["derive"] }
 log = "0.4.27"
 rand = "0.9.1"
+ron = "0.10.1"
+serde = "1.0.219"
 
 [profile.dev]
 opt-level = 1

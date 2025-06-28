@@ -10,6 +10,7 @@ use clap::Parser;
 mod animation;
 mod args;
 mod asset_loader;
+mod config;
 mod enemy;
 mod game_state;
 mod health;
@@ -21,14 +22,14 @@ mod ui;
 mod world;
 
 use crate::{
-    animation::AnimationPlugin, asset_loader::AssetLoaderPlugin, enemy::EnemyPlugin,
-    health::HealthPlugin, input::InputPlugin, physics::PhysicsPlugin, player::PlayerPlugin,
-    score::ScorePlugin, ui::UIPlugin, world::WorldPlugin,
+    animation::AnimationPlugin, asset_loader::AssetLoaderPlugin, config::GameConfig,
+    enemy::EnemyPlugin, health::HealthPlugin, input::InputPlugin, physics::PhysicsPlugin,
+    player::PlayerPlugin, score::ScorePlugin, ui::UIPlugin, world::WorldPlugin,
 };
 
 fn main() {
     let args = Args::parse();
-    log::info!("{args:?}");
+    let config = GameConfig::load("assets/config/game_config.ron");
 
     App::new()
         .add_plugins(
@@ -49,6 +50,7 @@ fn main() {
                 }),
         )
         .insert_resource(args)
+        .insert_resource(config)
         .insert_resource(ClearColor(Color::srgb_u8(51, 51, 51)))
         .add_plugins((
             AssetLoaderPlugin,

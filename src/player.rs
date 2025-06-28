@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{
     animation::{Animation, AnimationDir},
     asset_loader::ImageAssets,
+    config::GameConfig,
     game_state::GameState,
     health::Health,
     input::{Input, MousePos},
@@ -89,7 +90,6 @@ fn spawn_player(
     images: Res<ImageAssets>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     log::info!("Spawning player...");
 
@@ -100,8 +100,7 @@ fn spawn_player(
     }
 
     let image = images.pigeon_fly_sheet.clone();
-    let layout = TextureAtlasLayout::from_grid(UVec2::splat(32), 4, 1, None, None);
-    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    let layout = images.pigeon_fly_sheet_layout.clone();
 
     let animation = Animation {
         first: 0,
@@ -113,7 +112,7 @@ fn spawn_player(
     let sprite = Sprite::from_atlas_image(
         image,
         TextureAtlas {
-            layout: texture_atlas_layout,
+            layout,
             index: animation.first,
         },
     );
@@ -150,42 +149,49 @@ fn player_movement_system(
     input: Res<Input>,
     mut player: Query<&mut Velocity, (With<Player>, Without<ChargingDash>, Without<Dashing>)>,
     time: Res<Time>,
+    config: Res<GameConfig>,
 ) {
     let dt = time.delta_secs();
 
     if let Ok(mut vel) = player.single_mut() {
         let input = input.dir();
 
-        vel.target.x += input.x * PLAYER_X_ACCELERATION * dt;
-        vel.target.y += input.y * PLAYER_Y_ACCELERATION * dt;
+        vel.target.x += input.x * config.player_x_acceleration * dt;
+        vel.target.y += input.y * config.player_y_acceleration * dt;
 
-        vel.target.x = vel.target.x.clamp(-PLAYER_MAX_X_SPEED, PLAYER_MAX_X_SPEED);
+        vel.target.x = vel
+            .target
+            .x
+            .clamp(-config.player_max_x_speed, config.player_max_x_speed);
         vel.target.y = vel
             .target
             .y
-            .clamp(PLAYER_MIN_FALL_SPEED, PLAYER_MAX_RISE_SPEED);
+            .clamp(config.player_min_fall_speed, config.player_max_rise_speed);
     }
 }
 
-fn player_bounds_system(mut player: Query<(&mut Transform, &mut Velocity), With<Player>>) {
+fn player_bounds_system(
+    mut player: Query<(&mut Transform, &mut Velocity), With<Player>>,
+    config: Res<GameConfig>,
+) {
     if let Ok((mut transform, mut vel)) = player.single_mut() {
         let x = transform.translation.x;
 
-        if x > X_LIMIT && vel.target.x > 0. {
+        if x > config.x_limit && vel.target.x > 0. {
             vel.target.x = 0.;
             vel.current.x = 0.;
-            transform.translation.x = X_LIMIT;
-        } else if x < -X_LIMIT && vel.target.x < 0. {
+            transform.translation.x = config.x_limit;
+        } else if x < -config.x_limit && vel.target.x < 0. {
             vel.target.x = 0.;
             vel.current.x = 0.;
-            transform.translation.x = -X_LIMIT;
+            transform.translation.x = -config.x_limit;
         }
 
-        let overstep = transform.translation.y - CEILING_Y;
+        let overstep = transform.translation.y - config.ceiling_y;
 
         if overstep > 0.0 {
-            let pull = -overstep * SPRING_FORCE;
-            vel.target.y = pull.clamp(MAX_PULL, 0.0);
+            let pull = -overstep * config.spring_force;
+            vel.target.y = pull.clamp(config.max_pull, 0.0);
         }
     }
 }
@@ -230,6 +236,7 @@ fn player_charge_dash_system(
     >,
     mut arrows: Query<&mut DashDirectionArrow>,
     time: Res<Time>,
+    config: Res<GameConfig>,
 ) {
     let dt = time.delta_secs();
 
@@ -237,7 +244,7 @@ fn player_charge_dash_system(
         if input.dash() {
             let pos = transform.translation.xy();
             let dir = (**mouse_pos - pos).normalize_or_zero();
-            let power = dt / PLAYER_CHARGING_POWER_DURATION;
+            let power = dt / config.player_charging_power_duration;
 
             charging.dir = dir;
             charging.power += power;
@@ -255,10 +262,10 @@ fn player_charge_dash_system(
             commands.entity(entity).remove::<ChargingDash>();
             commands.entity(entity).insert(Dashing::new(
                 charging.dir * dash_power,
-                PLAYER_DASH_DURATION,
+                config.player_dash_duration,
             ));
             commands.entity(entity).insert(DashImmunity::new(
-                PLAYER_DASH_IMMUNITY_DURATION * dash_power,
+                config.player_dash_immunity_duration * dash_power,
             ));
 
             for &child in children.into_iter() {
@@ -307,13 +314,14 @@ fn player_dash_system(
     mut commands: Commands,
     mut player: Query<(Entity, &mut Velocity, &mut Dashing), With<Player>>,
     time: Res<Time>,
+    config: Res<GameConfig>,
 ) {
     if let Ok((entity, mut vel, mut dash)) = player.single_mut() {
-        vel.target = dash.power * PLAYER_DASH_SPEED;
+        vel.target = dash.power * config.player_dash_speed;
 
         dash.timer.tick(time.delta());
         if dash.timer.finished() {
-            vel.target = dash.power.normalize_or_zero() * PLAYER_MAX_X_SPEED;
+            vel.target = dash.power.normalize_or_zero() * config.player_max_x_speed;
             commands.entity(entity).remove::<Dashing>();
         }
     }
@@ -331,19 +339,3 @@ fn player_dash_immunity_system(
         }
     }
 }
-
-const X_LIMIT: f32 = 500.;
-
-const CEILING_Y: f32 = 200.0;
-const SPRING_FORCE: f32 = 6.0;
-const MAX_PULL: f32 = -280.0;
-
-const PLAYER_X_ACCELERATION: f32 = 2200.0;
-const PLAYER_Y_ACCELERATION: f32 = 340.0;
-const PLAYER_MAX_X_SPEED: f32 = 200.0;
-const PLAYER_MIN_FALL_SPEED: f32 = -680.0;
-const PLAYER_MAX_RISE_SPEED: f32 = 480.0;
-const PLAYER_CHARGING_POWER_DURATION: f32 = 0.5;
-const PLAYER_DASH_DURATION: f32 = 0.12;
-const PLAYER_DASH_IMMUNITY_DURATION: f32 = 1.;
-const PLAYER_DASH_SPEED: f32 = 3000.0;
