@@ -184,7 +184,7 @@ fn player_start_charge_dash_system(
     mouse_pos: Res<MousePos>,
     mut player: Query<
         (Entity, &Transform, &mut Velocity, &Children),
-        (With<Player>, Without<ChargingDash>),
+        (With<Player>, Without<ChargingDash>, Without<Dashing>),
     >,
     mut arrows: Query<&mut DashDirectionArrow>,
 ) {
@@ -245,9 +245,9 @@ fn player_charge_dash_system(
                 charging.dir * dash_power,
                 PLAYER_DASH_DURATION,
             ));
-            commands
-                .entity(entity)
-                .insert(DashImmunity::new(PLAYER_DASH_IMMUNITY_DURATION * dash_power));
+            commands.entity(entity).insert(DashImmunity::new(
+                PLAYER_DASH_IMMUNITY_DURATION * dash_power,
+            ));
 
             for &child in children.into_iter() {
                 if let Ok(mut arrow) = arrows.get_mut(child) {
@@ -279,8 +279,14 @@ fn dash_arrow_system(
         transform.rotation = rotation;
 
         if let Some(mat) = materials.get_mut(mat.id()) {
-            let alpha = if arrow.visibility { 1. } else { 0. };
-            mat.color.set_alpha(alpha);
+            let alpha = if arrow.visibility { 255 } else { 0 };
+
+            let color = if size == 1.0 {
+                Color::srgba_u8(200, 10, 10, alpha)
+            } else {
+                Color::srgba_u8(200, 200, 10, alpha)
+            };
+            mat.color = color;
         }
     }
 }

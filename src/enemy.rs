@@ -55,6 +55,13 @@ impl WeakSpotLocation {
             WeakSpotLocation::East => Vec3::NEG_X,
         }
     }
+
+    pub fn to_size(&self, side: f32) -> Vec2 {
+        match self {
+            WeakSpotLocation::North | WeakSpotLocation::South => Vec2::new(side, side / 2.),
+            WeakSpotLocation::West | WeakSpotLocation::East => Vec2::new(side / 2., side),
+        }
+    }
 }
 
 #[derive(Component, Default, Debug)]
@@ -64,11 +71,10 @@ pub struct WeakSpot {
 }
 
 impl WeakSpot {
-    pub fn new(size: Vec2) -> Self {
-        Self {
-            location: WeakSpotLocation::random(),
-            size,
-        }
+    pub fn new(side: f32) -> Self {
+        let location = WeakSpotLocation::random();
+        let size = location.to_size(side);
+        Self { location, size }
     }
 }
 
@@ -232,8 +238,9 @@ fn spawn_enemy(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
 ) {
-    let weak_spot = WeakSpot::new(Vec2::new(6., 6.));
+    let weak_spot = WeakSpot::new(16.);
     let weak_spot_pos = weak_spot.location.to_dir() * 16.;
+    let weak_spot_size = weak_spot.size;
 
     let mesh = meshes.add(Circle::new(16.));
     let material = materials.add(ColorMaterial::from_color(Color::srgb_u8(200, 10, 10)));
@@ -257,7 +264,7 @@ fn spawn_enemy(
                 Transform::from_translation(Vec3::new(weak_spot_pos.x, weak_spot_pos.y, 0.)),
                 Sprite {
                     color: Color::srgb_u8(200, 200, 10),
-                    custom_size: Some(Vec2::splat(12.)),
+                    custom_size: Some(weak_spot_size),
                     ..default()
                 },
             ));

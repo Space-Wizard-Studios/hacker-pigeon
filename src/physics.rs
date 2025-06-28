@@ -185,18 +185,26 @@ fn player_damage_drone_system(
 ) {
     if let Ok((player_transform, radius)) = player.single_mut() {
         let player_pos = player_transform.translation;
-        let player_size = **radius;
+        let player_radius = **radius;
 
         for (enemy, enemy_transform, radius, weak_spot) in enemies.iter() {
             let enemy_pos = enemy_transform.translation;
             let enemy_size = **radius;
-            let spot_size = weak_spot.size.x;
 
-            let weak_spot_pos = enemy_pos + weak_spot.location.to_dir() * enemy_size;
-            let dist_sq = (player_pos - weak_spot_pos).length_squared();
+            let spot_offset = weak_spot.location.to_dir() * enemy_size;
+            let spot_center = (enemy_pos + spot_offset).truncate();
 
-            let threshold = (player_size + spot_size) * (player_size + spot_size);
-            if dist_sq <= threshold {
+            let spot_half_size = weak_spot.size / 2.0;
+            let rect_min = spot_center - spot_half_size;
+            let rect_max = spot_center + spot_half_size;
+
+            let closest_x = player_pos.x.clamp(rect_min.x, rect_max.x);
+            let closest_y = player_pos.y.clamp(rect_min.y, rect_max.y);
+            let dx = player_pos.x - closest_x;
+            let dy = player_pos.y - closest_y;
+            let dist_sq = dx * dx + dy * dy;
+
+            if dist_sq <= player_radius * player_radius {
                 score.0 += 1;
                 commands.entity(enemy).despawn();
             }
