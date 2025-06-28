@@ -194,12 +194,12 @@ fn player_damage_drone_system(
     mut commands: Commands,
     mut score: ResMut<Score>,
     mut player: Query<
-        (&Transform, &Radius),
-        (With<Player>, With<DashEffect>, Without<CollisionImmunity>),
+        (&Transform, &Radius, &mut DashEffect),
+        (With<Player>, Without<CollisionImmunity>),
     >,
     enemies: Query<(Entity, &Transform, &Radius, &WeakSpot), With<Enemy>>,
 ) {
-    if let Ok((player_transform, radius)) = player.single_mut() {
+    if let Ok((player_transform, radius, mut dash)) = player.single_mut() {
         let player_pos = player_transform.translation.truncate();
         let player_radius = **radius;
 
@@ -224,8 +224,10 @@ fn player_damage_drone_system(
             let dist_sq = dx * dx + dy * dy;
 
             if dist_sq <= player_radius * player_radius {
-                score.0 += 1;
                 commands.entity(enemy).despawn();
+
+                score.0 += 1 + dash.combo;
+                dash.combo += 1;
             }
         }
     }
@@ -233,14 +235,15 @@ fn player_damage_drone_system(
 
 fn nuke_drone_collision_system(
     mut commands: Commands,
-    nukes: Query<(&Transform, &Radius), (With<Nuke>, Without<Enemy>)>,
+    mut score: ResMut<Score>,
+    mut nukes: Query<(&Transform, &Radius, &mut Nuke), (With<Nuke>, Without<Enemy>)>,
     enemies: Query<(Entity, &Transform, &Radius), (With<Enemy>, Without<Nuke>)>,
 ) {
     for (enemy, enemy_transform, radius) in enemies.iter() {
         let enemy_pos = enemy_transform.translation;
         let enemy_size = **radius;
 
-        for (nuke_transform, radius) in nukes.iter() {
+        for (nuke_transform, radius, mut nuke) in nukes.iter_mut() {
             let nuke_pos = nuke_transform.translation;
             let nuke_size = **radius;
 
@@ -249,6 +252,9 @@ fn nuke_drone_collision_system(
             let dist_sq = (nuke_pos - enemy_pos).length_squared();
             if dist_sq <= threshold {
                 commands.entity(enemy).despawn();
+
+                score.0 += 1 + nuke.combo;
+                nuke.combo += 1;
                 break;
             }
         }

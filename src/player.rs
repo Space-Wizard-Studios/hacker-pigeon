@@ -53,6 +53,7 @@ pub struct DashEffect {
     pub dir: Vec2,
     pub power: f32,
     pub timer: Timer,
+    pub combo: u32,
 }
 
 impl DashEffect {
@@ -61,6 +62,7 @@ impl DashEffect {
             dir,
             power,
             timer: Timer::from_seconds(duration_secs, TimerMode::Once),
+            combo: 0,
         }
     }
 }
@@ -68,12 +70,14 @@ impl DashEffect {
 #[derive(Component, Default, Debug)]
 pub struct Nuke {
     pub timer: Timer,
+    pub combo: u32,
 }
 
 impl Nuke {
     pub fn new(duration_secs: f32) -> Self {
         Self {
             timer: Timer::from_seconds(duration_secs, TimerMode::Once),
+            combo: 0,
         }
     }
 }
@@ -401,7 +405,6 @@ fn player_nuke_system(
 
 fn nuke_system(
     mut commands: Commands,
-    mut score: ResMut<Score>,
     mut nuke: Query<(Entity, &mut Nuke, &MeshMaterial2d<ColorMaterial>)>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     time: Res<Time>,
@@ -415,7 +418,6 @@ fn nuke_system(
         }
 
         if nuke.timer.finished() {
-            score.0 += 1;
             commands.entity(entity).despawn();
         }
     }
