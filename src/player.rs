@@ -381,7 +381,7 @@ fn dash_arrow_system(
             arrow.full_charged = true;
 
             commands.spawn((
-                AudioPlayer(audio_assets.dash_charged.clone()),
+                AudioPlayer(audio_assets.dash_full_charged.clone()),
                 PlaybackSettings::ONCE.with_volume(audio::Volume::Linear(1.)),
             ));
         }

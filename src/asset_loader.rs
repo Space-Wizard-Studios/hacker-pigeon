@@ -26,7 +26,7 @@ pub struct AudioAssets {
     #[asset(path = "audio/chungus43a_8-bit-laser-charging.wav")]
     pub dash_charging: Handle<AudioSource>,
     #[asset(path = "audio/chungus43a_8-bit-laser-charged.wav")]
-    pub dash_charged: Handle<AudioSource>,
+    pub dash_full_charged: Handle<AudioSource>,
     #[asset(path = "audio/coby12388_enerjump.wav")]
     pub dash_release: Handle<AudioSource>,
 
