@@ -9,6 +9,13 @@ pub struct ImageAssets {
     pub pigeon_fly_sheet_layout: Handle<TextureAtlasLayout>,
     #[asset(path = "pigeon/flying/spritesheet.png")]
     pub pigeon_fly_sheet: Handle<Image>,
+
+    #[asset(path = "world/sky.png")]
+    pub bg_sky: Handle<Image>,
+    #[asset(path = "world/ground.png")]
+    pub bg_ground: Handle<Image>,
+    #[asset(path = "world/buildings.png")]
+    pub bg_buildings: Handle<Image>,
 }
 
 pub struct AssetLoaderPlugin;

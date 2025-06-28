@@ -172,14 +172,14 @@ fn player_drone_collision_system(
 
             let dist_sq = (player_pos - enemy_pos).length_squared();
             if dist_sq <= threshold {
-                commands.entity(player).insert(CollisionImmunity::new(1.0));
-                commands.entity(player).insert(Blink::new(50));
-
                 if health.current > 0 {
                     health.current -= 1;
 
                     if health.current == 0 {
                         commands.set_state(GameState::GameOver);
+                    } else {
+                        commands.entity(player).insert(CollisionImmunity::new(1.0));
+                        commands.entity(player).insert(Blink::new(50));
                     }
                 }
 

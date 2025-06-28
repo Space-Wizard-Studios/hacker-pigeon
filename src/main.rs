@@ -51,7 +51,6 @@ fn main() {
         )
         .insert_resource(args)
         .insert_resource(config)
-        .insert_resource(ClearColor(Color::srgb_u8(51, 51, 51)))
         .add_plugins((
             AssetLoaderPlugin,
             WorldPlugin,
