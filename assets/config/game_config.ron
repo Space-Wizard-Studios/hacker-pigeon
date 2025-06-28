@@ -10,7 +10,7 @@
     spring_force: 6.0,
     max_pull: -280.0,
 
-    player_x_acceleration: 2200.0,
+    player_x_acceleration: 3200.0,
     player_y_acceleration: 340.0,
     player_max_x_speed: 200.0,
     player_min_fall_speed: -680.0,

@@ -106,6 +106,7 @@ fn spawn_player(
     mut commands: Commands,
     mut score: ResMut<Score>,
     players: Query<Entity, With<Player>>,
+    nukes: Query<Entity, With<Nuke>>,
     images: Res<ImageAssets>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -116,6 +117,10 @@ fn spawn_player(
 
     for player in &players {
         commands.entity(player).despawn();
+    }
+
+    for nuke in &nukes {
+        commands.entity(nuke).despawn();
     }
 
     let image = images.pigeon_fly_sheet.clone();
