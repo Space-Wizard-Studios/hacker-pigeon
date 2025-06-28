@@ -71,9 +71,9 @@ impl Plugin for PlayerPlugin {
                     player_movement_system,
                     player_dash_system,
                     player_dash_immunity_system,
-                    player_bounds_system,
                     player_start_charge_dash_system,
                     player_charge_dash_system,
+                    player_bounds_system,
                     dash_arrow_system,
                 )
                     .chain()
@@ -173,9 +173,11 @@ fn player_bounds_system(mut player: Query<(&mut Transform, &mut Velocity), With<
 
         if x > X_LIMIT && vel.target.x > 0. {
             vel.target.x = 0.;
+            vel.current.x = 0.;
             transform.translation.x = X_LIMIT;
         } else if x < -X_LIMIT && vel.target.x < 0. {
             vel.target.x = 0.;
+            vel.current.x = 0.;
             transform.translation.x = -X_LIMIT;
         }
 
