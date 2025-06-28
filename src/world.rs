@@ -1,7 +1,12 @@
-use bevy::{prelude::*, render::camera::ScalingMode};
+use bevy::{audio, prelude::*, render::camera::ScalingMode};
 use bevy_framepace::{FramepacePlugin, FramepaceSettings};
 
-use crate::{asset_loader::ImageAssets, config::GameConfig, game_state::GameState, player::Player};
+use crate::{
+    asset_loader::{AudioAssets, ImageAssets},
+    config::GameConfig,
+    game_state::GameState,
+    player::Player,
+};
 
 #[derive(Component)]
 pub struct Parallax {
@@ -26,7 +31,8 @@ impl Plugin for WorldPlugin {
 fn setup(
     mut commands: Commands,
     mut settings: ResMut<FramepaceSettings>,
-    images: Res<ImageAssets>,
+    image_assets: Res<ImageAssets>,
+    audio_assets: Res<AudioAssets>,
 ) {
     use bevy_framepace::Limiter;
     settings.limiter = Limiter::from_framerate(60.0);
@@ -40,9 +46,13 @@ fn setup(
     });
 
     commands.spawn((cam, projection));
-    commands.set_state(GameState::GameRunning);
 
-    let sky_image = images.bg_sky.clone();
+    commands.spawn((
+        AudioPlayer(audio_assets.bgm.clone()),
+        PlaybackSettings::LOOP.with_volume(audio::Volume::Linear(0.1)),
+    ));
+
+    let sky_image = image_assets.bg_sky.clone();
     let sky_sprite = Sprite {
         image: sky_image,
         image_mode: SpriteImageMode::Tiled {
@@ -57,7 +67,7 @@ fn setup(
     let sca = Vec3::new(6., 1., 1.);
     commands.spawn((sky_sprite, Transform::from_translation(pos).with_scale(sca)));
 
-    let ground_image = images.bg_ground.clone();
+    let ground_image = image_assets.bg_ground.clone();
     let ground_sprite = Sprite {
         image: ground_image,
         image_mode: SpriteImageMode::Tiled {
@@ -75,7 +85,7 @@ fn setup(
         Transform::from_translation(pos).with_scale(sca),
     ));
 
-    let buildings_image = images.bg_buildings.clone();
+    let buildings_image = image_assets.bg_buildings.clone();
     let buildings_sprite = Sprite {
         image: buildings_image,
         image_mode: SpriteImageMode::Tiled {
@@ -94,7 +104,7 @@ fn setup(
         Parallax { factor: 0.06 },
     ));
 
-    let buildings_image = images.bg_buildings.clone();
+    let buildings_image = image_assets.bg_buildings.clone();
     let buildings_sprite = Sprite {
         image: buildings_image,
         image_mode: SpriteImageMode::Tiled {
@@ -114,7 +124,7 @@ fn setup(
         Parallax { factor: 0.03 },
     ));
 
-    let buildings_image = images.bg_buildings.clone();
+    let buildings_image = image_assets.bg_buildings.clone();
     let buildings_sprite = Sprite {
         image: buildings_image,
         image_mode: SpriteImageMode::Tiled {
@@ -133,6 +143,8 @@ fn setup(
         Transform::from_translation(pos).with_scale(sca),
         Parallax { factor: 0.01 },
     ));
+
+    commands.set_state(GameState::GameRunning);
 }
 
 fn camera_follow(
