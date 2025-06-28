@@ -241,7 +241,7 @@ fn player_start_charge_dash_system(
     mouse_pos: Res<MousePos>,
     mut player: Query<
         (Entity, &Transform, &mut Velocity, &Children),
-        (With<Player>, Without<ChargingDash>, Without<Dashing>),
+        (With<Player>, Without<ChargingDash>, Without<DashEffect>),
     >,
     audio_assets: Res<AudioAssets>,
     mut arrows: Query<&mut DashDirectionArrow>,
