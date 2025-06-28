@@ -167,8 +167,18 @@ fn player_movement_system(
     }
 }
 
-fn player_bounds_system(mut player: Query<(&Transform, &mut Velocity), With<Player>>) {
-    if let Ok((transform, mut vel)) = player.single_mut() {
+fn player_bounds_system(mut player: Query<(&mut Transform, &mut Velocity), With<Player>>) {
+    if let Ok((mut transform, mut vel)) = player.single_mut() {
+        let x = transform.translation.x;
+
+        if x > X_LIMIT {
+            vel.target.x = 0.;
+            transform.translation.x = X_LIMIT;
+        } else if x < -X_LIMIT {
+            vel.target.x = 0.;
+            transform.translation.x = -X_LIMIT;
+        }
+
         let overstep = transform.translation.y - CEILING_Y;
 
         if overstep > 0.0 {
@@ -319,6 +329,8 @@ fn player_dash_immunity_system(
         }
     }
 }
+
+const X_LIMIT: f32 = 500.;
 
 const CEILING_Y: f32 = 160.0;
 const SPRING_FORCE: f32 = 6.0;

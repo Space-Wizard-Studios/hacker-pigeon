@@ -38,13 +38,6 @@ fn camera_follow(
     mut cameras: Query<&mut Transform, (With<Camera>, Without<Player>)>,
     time: Res<Time>,
 ) {
-    let x_min = -400.0;
-    let x_max = 400.0;
-    let y_min = -80.0;
-    let y_max = 0.0;
-
-    let smoothing_factor = 5.0;
-
     let dt = time.delta_secs();
 
     for player_transform in &players {
@@ -53,11 +46,17 @@ fn camera_follow(
         for mut camera_transform in &mut cameras {
             let current_pos = camera_transform.translation;
 
-            let target_x = target_pos.x.clamp(x_min, x_max);
-            let target_y = target_pos.y.clamp(y_min, y_max);
+            let target_x = target_pos.x.clamp(MIN_X, MAX_X);
+            let target_y = target_pos.y.clamp(MIN_Y, MAX_Y);
 
-            camera_transform.translation.x = current_pos.x.lerp(target_x, smoothing_factor * dt);
-            camera_transform.translation.y = current_pos.y.lerp(target_y, smoothing_factor * dt);
+            camera_transform.translation.x = current_pos.x.lerp(target_x, CAM_SMOOTHING * dt);
+            camera_transform.translation.y = current_pos.y.lerp(target_y, CAM_SMOOTHING * dt);
         }
     }
 }
+
+const MIN_Y: f32 = -80.0;
+const MAX_Y: f32 = 0.0;
+const MIN_X: f32 = -400.0;
+const MAX_X: f32 = 400.0;
+const CAM_SMOOTHING: f32 = 4.0;
