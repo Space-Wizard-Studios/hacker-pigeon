@@ -145,11 +145,7 @@ fn player_drone_collision_system(
     mut commands: Commands,
     mut player: Query<
         (Entity, &Transform, &Radius, &mut Health),
-        (
-            With<Player>,
-            Without<CollisionImmunity>,
-            Without<DashImmunity>,
-        ),
+        (With<Player>, Without<CollisionImmunity>),
     >,
     enemies: Query<(Entity, &Transform, &Radius), With<Enemy>>,
 ) {
@@ -181,7 +177,10 @@ fn player_drone_collision_system(
 fn player_damage_drone_system(
     mut commands: Commands,
     mut score: ResMut<Score>,
-    mut player: Query<(&Transform, &Radius), (With<Player>, With<DashImmunity>)>,
+    mut player: Query<
+        (&Transform, &Radius),
+        (With<Player>, With<DashImmunity>, Without<CollisionImmunity>),
+    >,
     enemies: Query<(Entity, &Transform, &Radius, &WeakSpot), With<Enemy>>,
 ) {
     if let Ok((player_transform, radius)) = player.single_mut() {
@@ -191,7 +190,7 @@ fn player_damage_drone_system(
         for (enemy, enemy_transform, radius, weak_spot) in enemies.iter() {
             let enemy_pos = enemy_transform.translation;
             let enemy_size = **radius;
-            let spot_size = weak_spot.size;
+            let spot_size = weak_spot.size.x;
 
             let weak_spot_pos = enemy_pos + weak_spot.location.to_dir() * enemy_size;
             let dist_sq = (player_pos - weak_spot_pos).length_squared();

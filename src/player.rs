@@ -87,6 +87,8 @@ fn spawn_player(
     mut score: ResMut<Score>,
     players: Query<Entity, With<Player>>,
     images: Res<ImageAssets>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     log::info!("Spawning player...");
@@ -116,6 +118,14 @@ fn spawn_player(
         },
     );
 
+    let mesh = meshes.add(Triangle2d::new(
+        Vec2::Y * 16.0,
+        Vec2::new(-4.0, 0.),
+        Vec2::new(4.0, 0.),
+    ));
+
+    let material = materials.add(ColorMaterial::from(Color::srgba_u8(200, 200, 10, 0)));
+
     commands
         .spawn((
             Player,
@@ -130,11 +140,8 @@ fn spawn_player(
             parent.spawn((
                 DashDirectionArrow::default(),
                 Transform::from_translation(Vec3::ZERO),
-                Sprite {
-                    color: Color::srgba_u8(200, 200, 10, 0),
-                    custom_size: Some(Vec2::splat(6.)),
-                    ..default()
-                },
+                Mesh2d(mesh),
+                MeshMaterial2d(material),
             ));
         });
 }
@@ -252,17 +259,29 @@ fn player_charge_dash_system(
     }
 }
 
-fn dash_arrow_system(mut arrows: Query<(&DashDirectionArrow, &mut Transform, &mut Sprite)>) {
-    for (arrow, mut transform, mut sprite) in arrows.iter_mut() {
+fn dash_arrow_system(
+    mut arrows: Query<(
+        &DashDirectionArrow,
+        &mut Transform,
+        &MeshMaterial2d<ColorMaterial>,
+    )>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (arrow, mut transform, mat) in arrows.iter_mut() {
         let pos = arrow.direction * 32.;
         transform.translation.x = pos.x;
         transform.translation.y = pos.y;
 
-        let alpha = if arrow.visibility { 1. } else { 0. };
-        sprite.color.set_alpha(alpha);
-
         let size = arrow.size.min(1.);
-        transform.scale = Vec3::splat(size);
+        transform.scale = Vec3::new(1., size, 1.);
+
+        let rotation = Quat::from_rotation_arc_2d(Vec2::Y, arrow.direction);
+        transform.rotation = rotation;
+
+        if let Some(mat) = materials.get_mut(mat.id()) {
+            let alpha = if arrow.visibility { 1. } else { 0. };
+            mat.color.set_alpha(alpha);
+        }
     }
 }
 
