@@ -20,7 +20,7 @@ pub struct ImageAssets {
 
 #[derive(AssetCollection, Resource)]
 pub struct AudioAssets {
-    #[asset(path = "lilmati_retro-explosion-04.wav")]
+    #[asset(path = "audio/lilmati_retro-explosion-04.wav")]
     pub boom: Handle<AudioSource>,
 }
 
