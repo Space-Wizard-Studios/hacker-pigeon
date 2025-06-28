@@ -247,7 +247,7 @@ fn player_charge_dash_system(
             ));
             commands
                 .entity(entity)
-                .insert(DashImmunity::new(PLAYER_DASH_IMMUNITY_DURATION));
+                .insert(DashImmunity::new(PLAYER_DASH_IMMUNITY_DURATION * dash_power));
 
             for &child in children.into_iter() {
                 if let Ok(mut arrow) = arrows.get_mut(child) {
