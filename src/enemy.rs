@@ -93,6 +93,11 @@ pub struct WeakSpot {
 }
 
 impl WeakSpot {
+    pub fn new(location: WeakSpotLocation, side: f32) -> Self {
+        let size = location.to_size(side);
+        Self { location, size }
+    }
+
     pub fn new_random(rng: &mut impl Rng, side: f32) -> Self {
         let location = WeakSpotLocation::new_random(rng);
         let size = location.to_size(side);
@@ -199,7 +204,7 @@ fn spawn_fly_enemy(
     let position = Vec3::new(x, y, 0.);
 
     let weak_spot = WeakSpot::new_random(rng, 16.);
-    let weak_spot_pos = weak_spot.location.to_dir() * 16.;
+    let weak_spot_pos = weak_spot.location.to_dir() * 20.;
     let weak_spot_size = weak_spot.size;
 
     let movement = EnemyMovement::new_random(rng);
@@ -245,7 +250,7 @@ fn spawn_ground_enemy(
     let y = config.floor_y + 16.;
     let position = Vec3::new(x, y, 0.);
 
-    let weak_spot = WeakSpot::new_random(rng, 16.);
+    let weak_spot = WeakSpot::new(WeakSpotLocation::South, 16.);
     let weak_spot_pos = weak_spot.location.to_dir() * 16.;
     let weak_spot_size = weak_spot.size;
 

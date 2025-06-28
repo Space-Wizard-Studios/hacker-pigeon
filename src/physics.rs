@@ -62,8 +62,8 @@ impl Plugin for PhysicsPlugin {
                 friction_system,
                 apply_velocity_system,
                 apply_grounding_system,
-                player_drone_collision_system,
                 player_damage_drone_system,
+                player_drone_collision_system,
                 collision_immunity_system,
                 blink_system,
             )

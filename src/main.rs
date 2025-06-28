@@ -29,8 +29,6 @@ use crate::{
 
 fn main() {
     let args = Args::parse();
-    log::info!("{args:?}");
-
     let config = GameConfig::load("assets/config/game_config.ron");
 
     App::new()
