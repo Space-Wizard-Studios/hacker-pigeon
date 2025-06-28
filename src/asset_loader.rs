@@ -18,6 +18,12 @@ pub struct ImageAssets {
     pub bg_buildings: Handle<Image>,
 }
 
+#[derive(AssetCollection, Resource)]
+pub struct AudioAssets {
+    #[asset(path = "lilmati_retro-explosion-04.wav")]
+    pub boom: Handle<AudioSource>,
+}
+
 pub struct AssetLoaderPlugin;
 
 impl Plugin for AssetLoaderPlugin {
@@ -25,6 +31,7 @@ impl Plugin for AssetLoaderPlugin {
         app.add_loading_state(
             LoadingState::new(GameState::AssetLoading)
                 .load_collection::<ImageAssets>()
+                .load_collection::<AudioAssets>()
                 .continue_to_state(GameState::GameSetup),
         );
     }

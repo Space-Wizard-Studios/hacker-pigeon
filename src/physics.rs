@@ -6,7 +6,7 @@ use crate::{
     enemy::{Enemy, WeakSpot},
     game_state::GameState,
     health::Health,
-    player::{ChargingDash, DashImmunity, Dashing, Player},
+    player::{ChargingDash, DashEffect, Dashing, Nuke, Player},
     score::Score,
 };
 
@@ -64,6 +64,7 @@ impl Plugin for PhysicsPlugin {
                 apply_grounding_system,
                 player_damage_drone_system,
                 player_drone_collision_system,
+                nuke_drone_collision_system,
                 collision_immunity_system,
                 blink_system,
             )
@@ -158,13 +159,13 @@ fn player_drone_collision_system(
         (Entity, &Transform, &Radius, &mut Health),
         (With<Player>, Without<CollisionImmunity>),
     >,
-    enemies: Query<(Entity, &Transform, &Radius), With<Enemy>>,
+    enemies: Query<(&Transform, &Radius), With<Enemy>>,
 ) {
     if let Ok((player, player_transform, radius, mut health)) = player.single_mut() {
         let player_pos = player_transform.translation;
         let player_size = **radius;
 
-        for (_, enemy_transform, radius) in enemies.iter() {
+        for (enemy_transform, radius) in enemies.iter() {
             let enemy_pos = enemy_transform.translation;
             let enemy_size = **radius;
 
@@ -194,7 +195,7 @@ fn player_damage_drone_system(
     mut score: ResMut<Score>,
     mut player: Query<
         (&Transform, &Radius),
-        (With<Player>, With<DashImmunity>, Without<CollisionImmunity>),
+        (With<Player>, With<DashEffect>, Without<CollisionImmunity>),
     >,
     enemies: Query<(Entity, &Transform, &Radius, &WeakSpot), With<Enemy>>,
 ) {
@@ -222,6 +223,30 @@ fn player_damage_drone_system(
             if dist_sq <= player_radius * player_radius {
                 score.0 += 1;
                 commands.entity(enemy).despawn();
+            }
+        }
+    }
+}
+
+fn nuke_drone_collision_system(
+    mut commands: Commands,
+    nukes: Query<(&Transform, &Radius), (With<Nuke>, Without<Enemy>)>,
+    enemies: Query<(Entity, &Transform, &Radius), (With<Enemy>, Without<Nuke>)>,
+) {
+    for (enemy, enemy_transform, radius) in enemies.iter() {
+        let enemy_pos = enemy_transform.translation;
+        let enemy_size = **radius;
+
+        for (nuke_transform, radius) in nukes.iter() {
+            let nuke_pos = nuke_transform.translation;
+            let nuke_size = **radius;
+
+            let threshold = (nuke_size + enemy_size) * (nuke_size + enemy_size);
+
+            let dist_sq = (nuke_pos - enemy_pos).length_squared();
+            if dist_sq <= threshold {
+                commands.entity(enemy).despawn();
+                break;
             }
         }
     }

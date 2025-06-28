@@ -1,8 +1,8 @@
-use bevy::prelude::*;
+use bevy::{audio, prelude::*, sprite::AlphaMode2d};
 
 use crate::{
     animation::{Animation, AnimationDir},
-    asset_loader::ImageAssets,
+    asset_loader::{AudioAssets, ImageAssets},
     config::GameConfig,
     game_state::GameState,
     health::Health,
@@ -49,11 +49,28 @@ pub struct DashDirectionArrow {
 }
 
 #[derive(Component, Default, Debug)]
-pub struct DashImmunity {
+pub struct DashEffect {
+    pub dir: Vec2,
+    pub power: f32,
     pub timer: Timer,
 }
 
-impl DashImmunity {
+impl DashEffect {
+    pub fn new(dir: Vec2, power: f32, duration_secs: f32) -> Self {
+        Self {
+            dir,
+            power,
+            timer: Timer::from_seconds(duration_secs, TimerMode::Once),
+        }
+    }
+}
+
+#[derive(Component, Default, Debug)]
+pub struct Nuke {
+    pub timer: Timer,
+}
+
+impl Nuke {
     pub fn new(duration_secs: f32) -> Self {
         Self {
             timer: Timer::from_seconds(duration_secs, TimerMode::Once),
@@ -71,11 +88,13 @@ impl Plugin for PlayerPlugin {
                 (
                     player_movement_system,
                     player_dash_system,
-                    player_dash_immunity_system,
+                    player_dash_effect_system,
                     player_start_charge_dash_system,
                     player_charge_dash_system,
-                    player_bounds_system,
                     dash_arrow_system,
+                    player_bounds_system,
+                    player_nuke_system,
+                    nuke_system,
                 )
                     .chain()
                     .run_if(in_state(GameState::GameRunning)),
@@ -264,7 +283,9 @@ fn player_charge_dash_system(
                 charging.dir * dash_power,
                 config.player_dash_duration,
             ));
-            commands.entity(entity).insert(DashImmunity::new(
+            commands.entity(entity).insert(DashEffect::new(
+                charging.dir,
+                dash_power,
                 config.player_dash_immunity_duration * dash_power,
             ));
 
@@ -327,15 +348,70 @@ fn player_dash_system(
     }
 }
 
-fn player_dash_immunity_system(
+fn player_dash_effect_system(
     mut commands: Commands,
-    mut player: Query<(Entity, &mut DashImmunity), With<Player>>,
+    mut player: Query<(Entity, &mut DashEffect), With<Player>>,
     time: Res<Time>,
 ) {
     if let Ok((entity, mut dash)) = player.single_mut() {
         dash.timer.tick(time.delta());
         if dash.timer.finished() {
-            commands.entity(entity).remove::<DashImmunity>();
+            commands.entity(entity).remove::<DashEffect>();
+        }
+    }
+}
+
+fn player_nuke_system(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    audio_assets: Res<AudioAssets>,
+    player: Query<(Entity, &Transform, &DashEffect), With<Player>>,
+    config: Res<GameConfig>,
+) {
+    if let Ok((entity, transform, dash)) = player.single() {
+        if transform.translation.y <= config.floor_y + 0.05 && dash.dir.y < 0. && dash.power >= 1. {
+            let mesh = meshes.add(Circle::new(96.));
+            let material = materials.add(ColorMaterial {
+                color: Color::srgb_u8(200, 10, 10),
+                alpha_mode: AlphaMode2d::Blend,
+                ..default()
+            });
+
+            commands.spawn((
+                Nuke::new(1.),
+                Radius(96.),
+                Transform::from_translation(transform.translation),
+                Mesh2d(mesh),
+                MeshMaterial2d(material),
+                AudioPlayer(audio_assets.boom.clone()),
+                PlaybackSettings::ONCE.with_volume(audio::Volume::Linear(0.5)),
+            ));
+
+            commands.entity(entity).remove::<Dashing>();
+            commands.entity(entity).remove::<DashEffect>();
+        }
+    }
+}
+
+fn nuke_system(
+    mut commands: Commands,
+    mut score: ResMut<Score>,
+    mut nuke: Query<(Entity, &mut Nuke, &MeshMaterial2d<ColorMaterial>)>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    time: Res<Time>,
+) {
+    for (entity, mut nuke, mat) in nuke.iter_mut() {
+        nuke.timer.tick(time.delta());
+
+        if let Some(mat) = materials.get_mut(mat.id()) {
+            let alpha = (nuke.timer.remaining_secs() * 255.) as u8;
+            mat.color = Color::srgba_u8(0, 255, 0, alpha);
+        }
+
+        if nuke.timer.finished() {
+            score.0 += 1;
+            commands.entity(entity).despawn();
         }
     }
 }
