@@ -1,7 +1,7 @@
 use bevy::{prelude::*, render::camera::ScalingMode};
 use bevy_framepace::{FramepacePlugin, FramepaceSettings};
 
-use crate::{game_state::GameState, player::Player};
+use crate::{config::GameConfig, game_state::GameState, player::Player};
 
 pub struct WorldPlugin;
 
@@ -37,6 +37,7 @@ fn camera_follow(
     players: Query<&Transform, With<Player>>,
     mut cameras: Query<&mut Transform, (With<Camera>, Without<Player>)>,
     time: Res<Time>,
+    config: Res<GameConfig>,
 ) {
     let dt = time.delta_secs();
 
@@ -46,17 +47,13 @@ fn camera_follow(
         for mut camera_transform in &mut cameras {
             let current_pos = camera_transform.translation;
 
-            let target_x = target_pos.x.clamp(MIN_X, MAX_X);
-            let target_y = target_pos.y.clamp(MIN_Y, MAX_Y);
+            let target_x = target_pos.x.clamp(config.cam_min_x, config.cam_max_x);
+            let target_y = target_pos.y.clamp(config.cam_min_y, config.cam_max_y);
 
-            camera_transform.translation.x = current_pos.x.lerp(target_x, CAM_SMOOTHING * dt);
-            camera_transform.translation.y = current_pos.y.lerp(target_y, CAM_SMOOTHING * dt);
+            camera_transform.translation.x =
+                current_pos.x.lerp(target_x, config.cam_smoothing * dt);
+            camera_transform.translation.y =
+                current_pos.y.lerp(target_y, config.cam_smoothing * dt);
         }
     }
 }
-
-const MIN_Y: f32 = -80.0;
-const MAX_Y: f32 = 0.0;
-const MIN_X: f32 = -400.0;
-const MAX_X: f32 = 400.0;
-const CAM_SMOOTHING: f32 = 4.0;

@@ -5,6 +5,8 @@ use crate::game_state::GameState;
 
 #[derive(AssetCollection, Resource)]
 pub struct ImageAssets {
+    #[asset(texture_atlas_layout(tile_size_x = 32, tile_size_y = 32, columns = 4, rows = 1))]
+    pub pigeon_fly_sheet_layout: Handle<TextureAtlasLayout>,
     #[asset(path = "pigeon/flying/spritesheet.png")]
     pub pigeon_fly_sheet: Handle<Image>,
 }

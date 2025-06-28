@@ -3,6 +3,7 @@ use bevy_egui::egui::emath::ease_in_ease_out;
 use rand::Rng;
 
 use crate::{
+    config::GameConfig,
     game_state::GameState,
     health::Health,
     physics::{Airborne, Radius, Velocity},
@@ -17,12 +18,34 @@ pub struct EnemyMovement {
     speed: f32,
 }
 
+impl EnemyMovement {
+    pub fn new_random(rng: &mut impl Rng) -> Self {
+        let period = rng.random_range(4.0..8.0);
+        let speed = rng.random_range(80.0..100.0);
+        Self { period, speed }
+    }
+}
+
 #[derive(Component, Default, Debug)]
 pub struct EnemyWobble {
     base_y: f32,
     spread: f32,
     timer: Timer,
     target_y: f32,
+}
+
+impl EnemyWobble {
+    pub fn new_random(rng: &mut impl Rng) -> Self {
+        let base_y = rng.random_range(140.0..180.0);
+        let spread = rng.random_range(15.0..40.0);
+        let wobble_time = rng.random_range(1.2..2.0);
+        Self {
+            base_y,
+            spread,
+            timer: Timer::from_seconds(wobble_time, TimerMode::Repeating),
+            target_y: base_y,
+        }
+    }
 }
 
 #[derive(Default, Debug)]
@@ -35,8 +58,7 @@ pub enum WeakSpotLocation {
 }
 
 impl WeakSpotLocation {
-    pub fn random() -> Self {
-        let mut rng = rand::rng();
+    pub fn new_random(rng: &mut impl Rng) -> Self {
         let dir = rng.random_range(0..4);
 
         match dir {
@@ -71,8 +93,8 @@ pub struct WeakSpot {
 }
 
 impl WeakSpot {
-    pub fn new(side: f32) -> Self {
-        let location = WeakSpotLocation::random();
+    pub fn new_random(rng: &mut impl Rng, side: f32) -> Self {
+        let location = WeakSpotLocation::new_random(rng);
         let size = location.to_size(side);
         Self { location, size }
     }
@@ -106,75 +128,15 @@ fn spawn_enemies(
     enemies: Query<Entity, With<Enemy>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    config: Res<GameConfig>,
 ) {
     for enemy in &enemies {
         commands.entity(enemy).despawn();
     }
 
-    spawn_enemy(
-        &mut commands,
-        Vec3::new(0., 280., 0.),
-        EnemyMovement {
-            period: 6.,
-            speed: 120.,
-        },
-        EnemyWobble {
-            base_y: 160.,
-            spread: 30.,
-            timer: Timer::from_seconds(1.5, TimerMode::Repeating),
-            target_y: 160.,
-        },
-        &mut meshes,
-        &mut materials,
-    );
-    spawn_enemy(
-        &mut commands,
-        Vec3::new(180., 280., 0.),
-        EnemyMovement {
-            period: 4.,
-            speed: 130.,
-        },
-        EnemyWobble {
-            base_y: 180.,
-            spread: 20.,
-            timer: Timer::from_seconds(1.7, TimerMode::Repeating),
-            target_y: 180.,
-        },
-        &mut meshes,
-        &mut materials,
-    );
-    spawn_enemy(
-        &mut commands,
-        Vec3::new(-180., 280., 0.),
-        EnemyMovement {
-            period: 8.,
-            speed: 80.,
-        },
-        EnemyWobble {
-            base_y: 160.,
-            spread: 35.,
-            timer: Timer::from_seconds(1.5, TimerMode::Repeating),
-            target_y: 160.,
-        },
-        &mut meshes,
-        &mut materials,
-    );
-    spawn_enemy(
-        &mut commands,
-        Vec3::new(-120., 280., 0.),
-        EnemyMovement {
-            period: 7.,
-            speed: 90.,
-        },
-        EnemyWobble {
-            base_y: 150.,
-            spread: 40.,
-            timer: Timer::from_seconds(1.6, TimerMode::Repeating),
-            target_y: 150.,
-        },
-        &mut meshes,
-        &mut materials,
-    );
+    for _ in 0..3 {
+        spawn_enemy(&mut commands, &mut meshes, &mut materials, &config);
+    }
 }
 
 fn enemy_respawn_system(
@@ -184,6 +146,7 @@ fn enemy_respawn_system(
     enemies: Query<(), With<Enemy>>,
     mut respawn_state: ResMut<EnemyRespawnTimer>,
     time: Res<Time>,
+    config: Res<GameConfig>,
 ) {
     if enemies.iter().count() > 3 {
         respawn_state.timer = None;
@@ -200,30 +163,9 @@ fn enemy_respawn_system(
         timer.tick(time.delta());
         if timer.finished() {
             let mut rng = rand::rng();
-
             let n = rng.random_range(1..=3);
             for _ in 0..n {
-                let x = rng.random_range(-150.0..150.0);
-                let y = rng.random_range(280.0..360.0);
-                let base_y = rng.random_range(140.0..180.0);
-                let spread = rng.random_range(15.0..40.0);
-                let period = rng.random_range(4.0..8.0);
-                let speed = rng.random_range(80.0..100.0);
-                let wobble_time = rng.random_range(1.2..2.0);
-
-                spawn_enemy(
-                    &mut commands,
-                    Vec3::new(x, y, 0.),
-                    EnemyMovement { period, speed },
-                    EnemyWobble {
-                        base_y,
-                        spread,
-                        timer: Timer::from_seconds(wobble_time, TimerMode::Repeating),
-                        target_y: base_y,
-                    },
-                    &mut meshes,
-                    &mut materials,
-                );
+                spawn_enemy(&mut commands, &mut meshes, &mut materials, &config);
             }
         }
     }
@@ -231,43 +173,109 @@ fn enemy_respawn_system(
 
 fn spawn_enemy(
     commands: &mut Commands,
-    position: Vec3,
-    movement: EnemyMovement,
-    wobble: EnemyWobble,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
+    config: &GameConfig,
 ) {
-    let weak_spot = WeakSpot::new(16.);
+    let mut rng = rand::rng();
+
+    let is_ground_enemy = rng.random_bool(0.3);
+
+    if is_ground_enemy {
+        spawn_ground_enemy(commands, meshes, materials, &mut rng, config);
+    } else {
+        spawn_fly_enemy(commands, meshes, materials, &mut rng);
+    }
+}
+
+fn spawn_fly_enemy(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    rng: &mut impl Rng,
+) {
+    let x = rng.random_range(-150.0..150.0);
+    let y = rng.random_range(280.0..360.0);
+    let position = Vec3::new(x, y, 0.);
+
+    let weak_spot = WeakSpot::new_random(rng, 16.);
     let weak_spot_pos = weak_spot.location.to_dir() * 16.;
     let weak_spot_size = weak_spot.size;
+
+    let movement = EnemyMovement::new_random(rng);
+    let wobble = EnemyWobble::new_random(rng);
 
     let mesh = meshes.add(Circle::new(16.));
     let material = materials.add(ColorMaterial::from_color(Color::srgb_u8(200, 10, 10)));
 
-    commands
-        .spawn((
-            Enemy,
-            Velocity::default(),
-            Transform::from_translation(position),
-            Radius(16.),
-            Health::new(1),
-            movement,
-            wobble,
-            Airborne,
-            weak_spot,
-            Mesh2d(mesh),
-            MeshMaterial2d(material),
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Transform::from_translation(Vec3::new(weak_spot_pos.x, weak_spot_pos.y, 0.)),
-                Sprite {
-                    color: Color::srgb_u8(200, 200, 10),
-                    custom_size: Some(weak_spot_size),
-                    ..default()
-                },
-            ));
-        });
+    let mut entity = commands.spawn((
+        Enemy,
+        Velocity::default(),
+        Transform::from_translation(position),
+        Radius(16.),
+        Health::new(1),
+        movement,
+        wobble,
+        Airborne,
+        weak_spot,
+        Mesh2d(mesh),
+        MeshMaterial2d(material),
+    ));
+
+    entity.with_children(|parent| {
+        parent.spawn((
+            Transform::from_translation(Vec3::new(weak_spot_pos.x, weak_spot_pos.y, 0.)),
+            Sprite {
+                color: Color::srgb_u8(200, 200, 10),
+                custom_size: Some(weak_spot_size),
+                ..default()
+            },
+        ));
+    });
+}
+
+fn spawn_ground_enemy(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    rng: &mut impl Rng,
+    config: &GameConfig,
+) {
+    let x = rng.random_range(-150.0..150.0);
+    let y = config.floor_y + 16.;
+    let position = Vec3::new(x, y, 0.);
+
+    let weak_spot = WeakSpot::new_random(rng, 16.);
+    let weak_spot_pos = weak_spot.location.to_dir() * 16.;
+    let weak_spot_size = weak_spot.size;
+
+    let movement = EnemyMovement::new_random(rng);
+
+    let mesh = meshes.add(Circle::new(16.));
+    let material = materials.add(ColorMaterial::from_color(Color::srgb_u8(200, 10, 10)));
+
+    let mut entity = commands.spawn((
+        Enemy,
+        Velocity::default(),
+        Transform::from_translation(position),
+        Radius(16.),
+        Health::new(1),
+        movement,
+        weak_spot,
+        Mesh2d(mesh),
+        MeshMaterial2d(material),
+    ));
+
+    entity.with_children(|parent| {
+        parent.spawn((
+            Transform::from_translation(Vec3::new(weak_spot_pos.x, weak_spot_pos.y, 0.)),
+            Sprite {
+                color: Color::srgb_u8(200, 200, 10),
+                custom_size: Some(weak_spot_size),
+                ..default()
+            },
+        ));
+    });
 }
 
 fn enemy_movement_system(
