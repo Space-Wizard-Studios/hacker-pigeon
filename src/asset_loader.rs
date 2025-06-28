@@ -16,7 +16,7 @@ impl Plugin for AssetLoaderPlugin {
         app.add_loading_state(
             LoadingState::new(GameState::AssetLoading)
                 .load_collection::<ImageAssets>()
-                .continue_to_state(GameState::GameRunning),
+                .continue_to_state(GameState::GameSetup),
         );
     }
 }

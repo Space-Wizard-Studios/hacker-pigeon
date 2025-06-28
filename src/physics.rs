@@ -166,6 +166,10 @@ fn player_drone_collision_system(
 
                 if health.current > 0 {
                     health.current -= 1;
+
+                    if health.current == 0 {
+                        commands.set_state(GameState::GameOver);
+                    }
                 }
 
                 break;

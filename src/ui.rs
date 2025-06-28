@@ -1,10 +1,11 @@
 use bevy::prelude::*;
 use bevy_egui::{
-    egui::{self, Align2, Color32, FontId, RichText},
+    egui::{self, Align2, Color32, FontId, Frame, Margin, RichText},
     EguiContextPass, EguiContexts, EguiPlugin,
 };
 
 use crate::{
+    game_state::GameState,
     health::Health,
     input::{Input, MousePos},
     physics::{Grounded, Velocity},
@@ -19,7 +20,14 @@ impl Plugin for UIPlugin {
         app.add_plugins(EguiPlugin {
             enable_multipass_for_primary_context: true,
         })
-        .add_systems(EguiContextPass, (ui_system, debug_ui_system));
+        .add_systems(
+            EguiContextPass,
+            (score_ui_system, debug_ui_system).run_if(in_state(GameState::GameRunning)),
+        )
+        .add_systems(
+            EguiContextPass,
+            (gameover_ui_system).run_if(in_state(GameState::GameOver)),
+        );
     }
 }
 
@@ -127,7 +135,7 @@ fn debug_ui_system(
     }
 }
 
-fn ui_system(mut contexts: EguiContexts, score: Res<Score>) {
+fn score_ui_system(mut contexts: EguiContexts, score: Res<Score>) {
     if let Some(ctx) = contexts.try_ctx_mut() {
         egui::Area::new("score".into())
             .anchor(Align2::CENTER_TOP, (0., 16.))
@@ -137,6 +145,49 @@ fn ui_system(mut contexts: EguiContexts, score: Res<Score>) {
                         .color(Color32::WHITE)
                         .font(FontId::proportional(16.0)),
                 );
+            });
+    }
+}
+
+fn gameover_ui_system(mut commands: Commands, mut contexts: EguiContexts, score: Res<Score>) {
+    if let Some(ctx) = contexts.try_ctx_mut() {
+        egui::CentralPanel::default()
+            .frame(
+                Frame::NONE
+                    .fill(Color32::from_rgba_unmultiplied(0, 0, 0, 220))
+                    .inner_margin(Margin::symmetric(24, 16)),
+            )
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(16.0);
+
+                    ui.label(
+                        RichText::new("GAME OVER")
+                            .color(Color32::WHITE)
+                            .font(FontId::proportional(32.0)),
+                    );
+
+                    ui.add_space(4.0);
+
+                    ui.label(
+                        RichText::new(format!("Final Score: {}", score.0))
+                            .color(Color32::WHITE)
+                            .font(FontId::proportional(16.0)),
+                    );
+
+                    ui.add_space(16.0);
+
+                    if ui
+                        .button(
+                            RichText::new("Play Again")
+                                .color(Color32::WHITE)
+                                .font(FontId::proportional(16.0)),
+                        )
+                        .clicked()
+                    {
+                        commands.set_state(GameState::GameRunning);
+                    }
+                });
             });
     }
 }

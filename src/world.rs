@@ -9,7 +9,7 @@ impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<GameState>()
             .add_plugins(FramepacePlugin)
-            .add_systems(OnEnter(GameState::GameRunning), (setup).chain())
+            .add_systems(OnEnter(GameState::GameSetup), (setup).chain())
             .add_systems(
                 Update,
                 ((camera_follow).run_if(in_state(GameState::GameRunning)),),

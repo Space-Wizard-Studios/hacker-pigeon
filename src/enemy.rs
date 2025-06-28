@@ -109,9 +109,14 @@ impl Plugin for EnemyPlugin {
 
 fn spawn_enemies(
     mut commands: Commands,
+    enemies: Query<Entity, With<Enemy>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
+    for enemy in &enemies {
+        commands.entity(enemy).despawn();
+    }
+
     spawn_enemy(
         &mut commands,
         Vec3::new(0., 280., 0.),
