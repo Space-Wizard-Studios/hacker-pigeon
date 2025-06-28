@@ -18,11 +18,21 @@ pub struct Player;
 pub struct ChargingDash {
     pub dir: Vec2,
     pub power: f32,
+    pub sound_entity: Option<Entity>,
 }
 
 impl ChargingDash {
     pub fn new(dir: Vec2) -> Self {
-        Self { dir, power: 0. }
+        Self {
+            dir,
+            power: 0.,
+            sound_entity: None,
+        }
+    }
+
+    pub fn with_sound(mut self, sound: Entity) -> Self {
+        self.sound_entity = Some(sound);
+        self
     }
 }
 
@@ -46,6 +56,7 @@ pub struct DashDirectionArrow {
     pub direction: Vec2,
     pub visibility: bool,
     pub size: f32,
+    pub full_charged: bool,
 }
 
 #[derive(Component, Default, Debug)]
@@ -111,7 +122,7 @@ fn spawn_player(
     mut score: ResMut<Score>,
     players: Query<Entity, With<Player>>,
     nukes: Query<Entity, With<Nuke>>,
-    images: Res<ImageAssets>,
+    image_assets: Res<ImageAssets>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -127,8 +138,8 @@ fn spawn_player(
         commands.entity(nuke).despawn();
     }
 
-    let image = images.pigeon_fly_sheet.clone();
-    let layout = images.pigeon_fly_sheet_layout.clone();
+    let image = image_assets.pigeon_fly_sheet.clone();
+    let layout = image_assets.pigeon_fly_sheet_layout.clone();
 
     let animation = Animation {
         first: 0,
@@ -232,6 +243,7 @@ fn player_start_charge_dash_system(
         (Entity, &Transform, &mut Velocity, &Children),
         (With<Player>, Without<ChargingDash>, Without<Dashing>),
     >,
+    audio_assets: Res<AudioAssets>,
     mut arrows: Query<&mut DashDirectionArrow>,
 ) {
     if let Ok((entity, transform, mut vel, children)) = player.single_mut() {
@@ -240,13 +252,24 @@ fn player_start_charge_dash_system(
 
             let pos = transform.translation.xy();
             let dir = (**mouse_pos - pos).normalize_or_zero();
-            commands.entity(entity).insert(ChargingDash::new(dir));
+
+            let sound_entity = commands
+                .spawn((
+                    AudioPlayer(audio_assets.dash_charging.clone()),
+                    PlaybackSettings::LOOP.with_volume(audio::Volume::Linear(1.)),
+                ))
+                .id();
+
+            commands
+                .entity(entity)
+                .insert(ChargingDash::new(dir).with_sound(sound_entity));
 
             for &child in children.into_iter() {
                 if let Ok(mut arrow) = arrows.get_mut(child) {
                     arrow.direction = dir;
                     arrow.visibility = true;
                     arrow.size = 0.;
+                    arrow.full_charged = false;
                     break;
                 }
             }
@@ -263,6 +286,7 @@ fn player_charge_dash_system(
         (With<Player>, Without<Dashing>),
     >,
     mut arrows: Query<&mut DashDirectionArrow>,
+    audio_assets: Res<AudioAssets>,
     time: Res<Time>,
     config: Res<GameConfig>,
 ) {
@@ -286,8 +310,21 @@ fn player_charge_dash_system(
                 }
             }
         } else {
-            let dash_power = charging.power.min(1.0);
             commands.entity(entity).remove::<ChargingDash>();
+
+            if let Some(sound_entity) = charging.sound_entity.take() {
+                commands.entity(sound_entity).despawn();
+            }
+
+            for &child in children.into_iter() {
+                if let Ok(mut arrow) = arrows.get_mut(child) {
+                    arrow.visibility = false;
+                    break;
+                }
+            }
+
+            let dash_power = charging.power.min(1.0);
+
             commands.entity(entity).insert(Dashing::new(
                 charging.dir * dash_power,
                 config.player_dash_duration,
@@ -298,30 +335,31 @@ fn player_charge_dash_system(
                 config.player_dash_immunity_duration * dash_power,
             ));
 
-            for &child in children.into_iter() {
-                if let Ok(mut arrow) = arrows.get_mut(child) {
-                    arrow.visibility = false;
-                    break;
-                }
-            }
+            commands.spawn((
+                AudioPlayer(audio_assets.dash_release.clone()),
+                PlaybackSettings::REMOVE.with_volume(audio::Volume::Linear(1.)),
+            ));
         }
     }
 }
 
 fn dash_arrow_system(
+    mut commands: Commands,
     mut arrows: Query<(
-        &DashDirectionArrow,
+        &mut DashDirectionArrow,
         &mut Transform,
         &MeshMaterial2d<ColorMaterial>,
     )>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    audio_assets: Res<AudioAssets>,
 ) {
-    for (arrow, mut transform, mat) in arrows.iter_mut() {
+    for (mut arrow, mut transform, mat) in arrows.iter_mut() {
         let pos = arrow.direction * 32.;
         transform.translation.x = pos.x;
         transform.translation.y = pos.y;
 
         let size = arrow.size.min(1.);
+
         transform.scale = Vec3::new(1., size, 1.);
 
         let rotation = Quat::from_rotation_arc_2d(Vec2::Y, arrow.direction);
@@ -335,7 +373,17 @@ fn dash_arrow_system(
             } else {
                 Color::srgba_u8(200, 200, 10, alpha)
             };
+
             mat.color = color;
+        }
+
+        if size == 1.0 && !arrow.full_charged {
+            arrow.full_charged = true;
+
+            commands.spawn((
+                AudioPlayer(audio_assets.dash_full_charged.clone()),
+                PlaybackSettings::ONCE.with_volume(audio::Volume::Linear(1.)),
+            ));
         }
     }
 }
@@ -394,7 +442,7 @@ fn player_nuke_system(
                 Mesh2d(mesh),
                 MeshMaterial2d(material),
                 AudioPlayer(audio_assets.boom.clone()),
-                PlaybackSettings::ONCE.with_volume(audio::Volume::Linear(0.5)),
+                PlaybackSettings::REMOVE.with_volume(audio::Volume::Linear(0.5)),
             ));
 
             commands.entity(entity).remove::<Dashing>();

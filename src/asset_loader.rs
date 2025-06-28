@@ -20,6 +20,16 @@ pub struct ImageAssets {
 
 #[derive(AssetCollection, Resource)]
 pub struct AudioAssets {
+    #[asset(path = "audio/badoink_megaman-loop.wav")]
+    pub bgm: Handle<AudioSource>,
+
+    #[asset(path = "audio/chungus43a_8-bit-laser-charging.wav")]
+    pub dash_charging: Handle<AudioSource>,
+    #[asset(path = "audio/chungus43a_8-bit-laser-charged.wav")]
+    pub dash_full_charged: Handle<AudioSource>,
+    #[asset(path = "audio/coby12388_enerjump.wav")]
+    pub dash_release: Handle<AudioSource>,
+
     #[asset(path = "audio/lilmati_retro-explosion-04.wav")]
     pub boom: Handle<AudioSource>,
 }

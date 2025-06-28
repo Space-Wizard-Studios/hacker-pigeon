@@ -156,12 +156,12 @@ fn apply_grounding_system(
 fn player_drone_collision_system(
     mut commands: Commands,
     mut player: Query<
-        (Entity, &Transform, &Radius, &mut Health),
+        (Entity, &Transform, &Radius, &mut Velocity, &mut Health),
         (With<Player>, Without<CollisionImmunity>),
     >,
     enemies: Query<(&Transform, &Radius), With<Enemy>>,
 ) {
-    if let Ok((player, player_transform, radius, mut health)) = player.single_mut() {
+    if let Ok((player, player_transform, radius, mut vel, mut health)) = player.single_mut() {
         let player_pos = player_transform.translation;
         let player_size = **radius;
 
@@ -184,6 +184,17 @@ fn player_drone_collision_system(
                     }
                 }
 
+                let dx = (enemy_pos.x - player_pos.x).abs();
+                let dy = (enemy_pos.y - player_pos.y).abs();
+
+                if dx > dy {
+                    vel.target.x *= -1.;
+                    vel.current.x *= -1.;
+                } else {
+                    vel.target.y *= -1.;
+                    vel.current.y *= -1.;
+                }
+
                 break;
             }
         }
@@ -194,12 +205,12 @@ fn player_damage_drone_system(
     mut commands: Commands,
     mut score: ResMut<Score>,
     mut player: Query<
-        (&Transform, &Radius, &mut DashEffect),
+        (&Transform, &Radius, &mut Velocity, &mut DashEffect),
         (With<Player>, Without<CollisionImmunity>),
     >,
     enemies: Query<(Entity, &Transform, &Radius, &WeakSpot), With<Enemy>>,
 ) {
-    if let Ok((player_transform, radius, mut dash)) = player.single_mut() {
+    if let Ok((player_transform, radius, mut vel, mut dash)) = player.single_mut() {
         let player_pos = player_transform.translation.truncate();
         let player_radius = **radius;
 
@@ -228,6 +239,19 @@ fn player_damage_drone_system(
 
                 score.0 += 1 + dash.combo;
                 dash.combo += 1;
+
+                if dash.power < 1.0 {
+                    let dx = (enemy_pos.x - player_pos.x).abs();
+                    let dy = (enemy_pos.y - player_pos.y).abs();
+
+                    if dx > dy {
+                        vel.target.x *= -1.;
+                        vel.current.x *= -1.;
+                    } else {
+                        vel.target.y *= -1.;
+                        vel.current.y *= -1.;
+                    }
+                }
             }
         }
     }
