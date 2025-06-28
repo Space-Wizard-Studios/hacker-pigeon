@@ -200,24 +200,27 @@ fn player_damage_drone_system(
     enemies: Query<(Entity, &Transform, &Radius, &WeakSpot), With<Enemy>>,
 ) {
     if let Ok((player_transform, radius)) = player.single_mut() {
-        let player_pos = player_transform.translation;
+        let player_pos = player_transform.translation.truncate();
         let player_radius = **radius;
 
         for (enemy, enemy_transform, radius, weak_spot) in enemies.iter() {
-            let enemy_pos = enemy_transform.translation;
+            let enemy_pos = enemy_transform.translation.truncate();
             let enemy_size = **radius;
 
             let spot_offset = weak_spot.location.to_dir() * enemy_size;
-            let spot_center = (enemy_pos + spot_offset).truncate();
+            let spot_center = enemy_pos + spot_offset;
 
             let spot_half_size = weak_spot.size / 2.0;
-            let rect_min = spot_center - spot_half_size;
-            let rect_max = spot_center + spot_half_size;
+            let rotation = weak_spot.rotation;
 
-            let closest_x = player_pos.x.clamp(rect_min.x, rect_max.x);
-            let closest_y = player_pos.y.clamp(rect_min.y, rect_max.y);
-            let dx = player_pos.x - closest_x;
-            let dy = player_pos.y - closest_y;
+            let rel_pos = player_pos - spot_center;
+            let unrotated = rotation
+                .conjugate()
+                .mul_vec3(rel_pos.extend(0.0))
+                .truncate();
+
+            let dx = unrotated.x.clamp(-spot_half_size.x, spot_half_size.x) - unrotated.x;
+            let dy = unrotated.y.clamp(-spot_half_size.y, spot_half_size.y) - unrotated.y;
             let dist_sq = dx * dx + dy * dy;
 
             if dist_sq <= player_radius * player_radius {

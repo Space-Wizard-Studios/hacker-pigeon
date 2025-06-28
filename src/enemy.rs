@@ -55,34 +55,60 @@ pub enum WeakSpotLocation {
     South,
     West,
     East,
+    NorthEast,
+    SouthEast,
+    NorthWest,
+    SouthWest,
 }
 
 impl WeakSpotLocation {
     pub fn new_random(rng: &mut impl Rng) -> Self {
-        let dir = rng.random_range(0..4);
+        let dir = rng.random_range(0..=7);
 
         match dir {
-            0 => WeakSpotLocation::North,
-            1 => WeakSpotLocation::South,
-            2 => WeakSpotLocation::West,
-            _ => WeakSpotLocation::East,
+            0 => Self::North,
+            1 => Self::South,
+            2 => Self::West,
+            3 => Self::East,
+            4 => Self::NorthEast,
+            5 => Self::SouthEast,
+            6 => Self::NorthWest,
+            _ => Self::SouthWest,
         }
     }
 
-    pub fn to_dir(&self) -> Vec3 {
+    pub fn to_dir(&self) -> Vec2 {
         match self {
-            WeakSpotLocation::North => Vec3::Y,
-            WeakSpotLocation::South => Vec3::NEG_Y,
-            WeakSpotLocation::West => Vec3::X,
-            WeakSpotLocation::East => Vec3::NEG_X,
+            Self::North => Vec2::Y,
+            Self::South => Vec2::NEG_Y,
+            Self::West => Vec2::X,
+            Self::East => Vec2::NEG_X,
+            Self::NorthEast => Vec2::new(-1., 1.).normalize(),
+            Self::SouthEast => Vec2::new(-1., -1.).normalize(),
+            Self::NorthWest => Vec2::new(1., 1.).normalize(),
+            Self::SouthWest => Vec2::new(-1., 1.).normalize(),
         }
+    }
+
+    pub fn to_rotation(&self) -> Quat {
+        use std::f32::consts::FRAC_PI_2;
+
+        let angle = match self {
+            Self::North => 0.0,
+            Self::East => -FRAC_PI_2,
+            Self::South => std::f32::consts::PI,
+            Self::West => FRAC_PI_2,
+            Self::NorthEast => -FRAC_PI_2 * 1.5,
+            Self::SouthEast => -FRAC_PI_2 / 2.0,
+            Self::NorthWest => FRAC_PI_2 * 1.5,
+            Self::SouthWest => FRAC_PI_2 / 2.0,
+        };
+
+        Quat::from_rotation_z(angle)
     }
 
     pub fn to_size(&self, side: f32) -> Vec2 {
-        match self {
-            WeakSpotLocation::North | WeakSpotLocation::South => Vec2::new(side, side / 2.),
-            WeakSpotLocation::West | WeakSpotLocation::East => Vec2::new(side / 2., side),
-        }
+        Vec2::new(side, side / 2.)
     }
 }
 
@@ -90,18 +116,29 @@ impl WeakSpotLocation {
 pub struct WeakSpot {
     pub location: WeakSpotLocation,
     pub size: Vec2,
+    pub rotation: Quat,
 }
 
 impl WeakSpot {
     pub fn new(location: WeakSpotLocation, side: f32) -> Self {
         let size = location.to_size(side);
-        Self { location, size }
+        let rotation = location.to_rotation();
+        Self {
+            location,
+            size,
+            rotation,
+        }
     }
 
     pub fn new_random(rng: &mut impl Rng, side: f32) -> Self {
         let location = WeakSpotLocation::new_random(rng);
         let size = location.to_size(side);
-        Self { location, size }
+        let rotation = location.to_rotation();
+        Self {
+            location,
+            size,
+            rotation,
+        }
     }
 }
 
@@ -205,10 +242,11 @@ fn spawn_fly_enemy(
 
     let weak_spot = WeakSpot::new_random(rng, 16.);
     let weak_spot_pos = weak_spot.location.to_dir() * 20.;
+    let weak_spot_rot = weak_spot.rotation;
     let weak_spot_size = weak_spot.size;
 
     let movement = EnemyMovement::new_random(rng);
-    let wobble = EnemyWobble::new_random(rng);
+    let wobble: EnemyWobble = EnemyWobble::new_random(rng);
 
     let mesh = meshes.add(Circle::new(16.));
     let material = materials.add(ColorMaterial::from_color(Color::srgb_u8(200, 10, 10)));
@@ -229,7 +267,7 @@ fn spawn_fly_enemy(
 
     entity.with_children(|parent| {
         parent.spawn((
-            Transform::from_translation(Vec3::new(weak_spot_pos.x, weak_spot_pos.y, 0.)),
+            Transform::from_translation(weak_spot_pos.extend(0.)).with_rotation(weak_spot_rot),
             Sprite {
                 color: Color::srgb_u8(200, 200, 10),
                 custom_size: Some(weak_spot_size),
@@ -252,6 +290,7 @@ fn spawn_ground_enemy(
 
     let weak_spot = WeakSpot::new(WeakSpotLocation::South, 16.);
     let weak_spot_pos = weak_spot.location.to_dir() * 16.;
+    let weak_spot_rot = weak_spot.rotation;
     let weak_spot_size = weak_spot.size;
 
     let movement = EnemyMovement::new_random(rng);
@@ -273,7 +312,7 @@ fn spawn_ground_enemy(
 
     entity.with_children(|parent| {
         parent.spawn((
-            Transform::from_translation(Vec3::new(weak_spot_pos.x, weak_spot_pos.y, 0.)),
+            Transform::from_translation(weak_spot_pos.extend(0.)).with_rotation(weak_spot_rot),
             Sprite {
                 color: Color::srgb_u8(200, 200, 10),
                 custom_size: Some(weak_spot_size),
