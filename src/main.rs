@@ -1,7 +1,9 @@
 #![allow(clippy::type_complexity)]
 extern crate console_error_panic_hook;
+
 use args::Args;
 use bevy::{
+    asset::AssetMetaCheck,
     log::{Level, LogPlugin},
     prelude::*,
 };
@@ -33,12 +35,18 @@ fn main() {
     let args = Args::parse();
 
     App::new()
+        .insert_resource(args)
         .add_plugins(
             DefaultPlugins
                 .set(LogPlugin {
                     filter: "warn,ui=info".to_string(),
                     level: Level::INFO,
                     ..Default::default()
+                })
+                .set(AssetPlugin {
+                    file_path: "assets".into(),
+                    meta_check: AssetMetaCheck::Never,
+                    ..default()
                 })
                 .set(ImagePlugin::default_nearest())
                 .set(WindowPlugin {
@@ -50,7 +58,6 @@ fn main() {
                     ..default()
                 }),
         )
-        .insert_resource(args)
         .add_plugins((
             AssetLoaderPlugin,
             WorldPlugin,

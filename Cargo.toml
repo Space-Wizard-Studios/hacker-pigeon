@@ -18,6 +18,9 @@ ron = "0.10.1"
 serde = "1.0.219"
 getrandom = { version = "0.3.3", features = ["wasm_js"] }
 console_error_panic_hook = "0.1.7"
+bevy_common_assets = { version = "0.13.0", default-features = false, features = [
+	"json",
+] }
 
 [profile.dev]
 opt-level = 1
