@@ -16,6 +16,8 @@ log = "0.4.27"
 rand = "0.9.1"
 ron = "0.10.1"
 serde = "1.0.219"
+getrandom = { version = "0.3.3", features = ["wasm_js"] }
+console_error_panic_hook = "0.1.7"
 
 [profile.dev]
 opt-level = 1

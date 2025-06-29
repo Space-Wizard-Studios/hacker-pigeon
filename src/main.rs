@@ -1,5 +1,5 @@
 #![allow(clippy::type_complexity)]
-
+extern crate console_error_panic_hook;
 use args::Args;
 use bevy::{
     log::{Level, LogPlugin},
@@ -28,6 +28,8 @@ use crate::{
 };
 
 fn main() {
+    console_error_panic_hook::set_once();
+
     let args = Args::parse();
     let config = GameConfig::load("assets/config/game_config.ron");
 
