@@ -3,13 +3,22 @@
 
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Hacker Pigeon</title>
-  <base data-trunk-public-url />
+
   <link data-trunk rel="copy-dir" href="./assets" integrity="none" />
   <link data-trunk rel="css" href="./main.css" integrity="none" />
+  <base data-trunk-public-url />
 </head>
 
 <body>
+  <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="z" data-initializer="src/initializer.mjs" />
+
+  <script type="module">
+    addEventListener("TrunkApplicationStarted", (event) => {
+      console.log("application started - bindings:", window.wasmBindings, "event:", event);
+    });
+  </script>
 </body>
 
 </html>

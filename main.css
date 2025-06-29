@@ -1,3 +1,9 @@
 html {
   background-color: rgb(51, 51, 51);
 }
+
+body {
+  font-size: 20pt;
+  color: #dddddd;
+  font-family: sans-serif;
+}
