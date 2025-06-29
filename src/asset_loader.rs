@@ -7,7 +7,7 @@ use crate::game_state::GameState;
 pub struct ImageAssets {
     #[asset(texture_atlas_layout(tile_size_x = 32, tile_size_y = 32, columns = 4, rows = 1))]
     pub pigeon_fly_sheet_layout: Handle<TextureAtlasLayout>,
-    #[asset(path = "pigeon/flying/spritesheet.png")]
+    #[asset(path = "pigeon/flying.png")]
     pub pigeon_fly_sheet: Handle<Image>,
 
     #[asset(path = "world/sky.png")]
@@ -23,14 +23,14 @@ pub struct AudioAssets {
     #[asset(path = "audio/badoink_megaman-loop.wav")]
     pub bgm: Handle<AudioSource>,
 
-    #[asset(path = "audio/chungus43a_8-bit-laser-charging.wav")]
+    #[asset(path = "audio/jsfxr/player/dash_charging.wav")]
     pub dash_charging: Handle<AudioSource>,
-    #[asset(path = "audio/chungus43a_8-bit-laser-charged.wav")]
+    #[asset(path = "audio/jsfxr/player/dash_full_charged.wav")]
     pub dash_full_charged: Handle<AudioSource>,
-    #[asset(path = "audio/coby12388_enerjump.wav")]
+    #[asset(path = "audio/jsfxr/player/dash_release.wav")]
     pub dash_release: Handle<AudioSource>,
 
-    #[asset(path = "audio/lilmati_retro-explosion-04.wav")]
+    #[asset(path = "audio/jsfxr/player/drop.wav")]
     pub boom: Handle<AudioSource>,
 }
 
