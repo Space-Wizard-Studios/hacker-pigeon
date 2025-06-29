@@ -279,7 +279,6 @@ fn player_start_charge_dash_system(
 }
 
 fn player_charging_dash_system(
-    input: Res<Input>,
     mouse_pos: Res<MousePos>,
     mut player: Query<
         (&Transform, &mut ChargingDash, &Children),
@@ -291,22 +290,20 @@ fn player_charging_dash_system(
 ) {
     let dt = time.delta_secs();
 
-    if input.dash() {
-        if let Ok((transform, mut charging, children)) = player.single_mut() {
-            let pos = transform.translation.xy();
-            let dir = (**mouse_pos - pos).normalize_or_zero();
-            let power = dt / cfg.game.player_charging_power_duration;
+    if let Ok((transform, mut charging, children)) = player.single_mut() {
+        let pos = transform.translation.xy();
+        let dir = (**mouse_pos - pos).normalize_or_zero();
+        let power = dt / cfg.game.player_charging_power_duration;
 
-            charging.dir = dir;
-            charging.power += power;
+        charging.dir = dir;
+        charging.power += power;
 
-            for &child in children.into_iter() {
-                if let Ok(mut arrow) = arrows.get_mut(child) {
-                    arrow.direction = dir;
-                    arrow.visibility = true;
-                    arrow.size += power;
-                    break;
-                }
+        for &child in children.into_iter() {
+            if let Ok(mut arrow) = arrows.get_mut(child) {
+                arrow.direction = dir;
+                arrow.visibility = true;
+                arrow.size += power;
+                break;
             }
         }
     }
@@ -320,38 +317,40 @@ fn player_release_dash_system(
     audio_assets: Res<AudioAssets>,
     cfg: Res<Config>,
 ) {
-    if !input.dash() {
-        if let Ok((entity, mut charging, children)) = player.single_mut() {
-            commands.entity(entity).remove::<ChargingDash>();
+    if input.dash() {
+        return;
+    }
 
-            if let Some(sound_entity) = charging.sound_entity.take() {
-                commands.entity(sound_entity).despawn();
-            }
+    if let Ok((entity, mut charging, children)) = player.single_mut() {
+        commands.entity(entity).remove::<ChargingDash>();
 
-            for &child in children.into_iter() {
-                if let Ok(mut arrow) = arrows.get_mut(child) {
-                    arrow.visibility = false;
-                    break;
-                }
-            }
-
-            let dash_power = charging.power.min(1.0);
-
-            commands.entity(entity).insert(Dashing::new(
-                charging.dir * dash_power,
-                cfg.game.player_dash_duration,
-            ));
-            commands.entity(entity).insert(DashEffect::new(
-                charging.dir,
-                dash_power,
-                cfg.game.player_dash_immunity_duration * dash_power,
-            ));
-
-            commands.spawn((
-                AudioPlayer(audio_assets.dash_release.clone()),
-                PlaybackSettings::REMOVE.with_volume(audio::Volume::Linear(1.)),
-            ));
+        if let Some(sound_entity) = charging.sound_entity.take() {
+            commands.entity(sound_entity).despawn();
         }
+
+        for &child in children.into_iter() {
+            if let Ok(mut arrow) = arrows.get_mut(child) {
+                arrow.visibility = false;
+                break;
+            }
+        }
+
+        let dash_power = charging.power.min(1.0);
+
+        commands.entity(entity).insert(Dashing::new(
+            charging.dir * dash_power,
+            cfg.game.player_dash_duration,
+        ));
+        commands.entity(entity).insert(DashEffect::new(
+            charging.dir,
+            dash_power,
+            cfg.game.player_dash_immunity_duration * dash_power,
+        ));
+
+        commands.spawn((
+            AudioPlayer(audio_assets.dash_release.clone()),
+            PlaybackSettings::REMOVE.with_volume(audio::Volume::Linear(1.)),
+        ));
     }
 }
 
