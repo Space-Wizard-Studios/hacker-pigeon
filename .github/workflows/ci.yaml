@@ -20,7 +20,7 @@ jobs:
       - name: Checkout Sources
         uses: actions/checkout@v4
 
-      - name: Install ALSA development libraries
+      - name: Install development libraries
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
 
       - name: Install Rust
@@ -33,12 +33,13 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-hp-build-${{ hashFiles('**/Cargo.toml') }}
+          cache-on-failure: true
 
       - name: Run cargo clippy
         run: cargo clippy -- -D warnings
 
       - name: Setup Trunk
-        run: cargo binstall trunk
+        run: cargo install --locked trunk
 
       - name: Build
         run: trunk build -d public
