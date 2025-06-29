@@ -105,7 +105,8 @@ impl Plugin for PlayerPlugin {
                     player_dash_system,
                     player_dash_effect_system,
                     player_start_charge_dash_system,
-                    player_charge_dash_system,
+                    player_charging_dash_system,
+                    player_release_dash_system,
                     dash_arrow_system,
                     player_bounds_system,
                     player_nuke_system,
@@ -277,23 +278,21 @@ fn player_start_charge_dash_system(
     }
 }
 
-fn player_charge_dash_system(
-    mut commands: Commands,
+fn player_charging_dash_system(
     input: Res<Input>,
     mouse_pos: Res<MousePos>,
     mut player: Query<
-        (Entity, &Transform, &mut ChargingDash, &Children),
-        (With<Player>, Without<Dashing>),
+        (&Transform, &mut ChargingDash, &Children),
+        (With<Player>, With<ChargingDash>),
     >,
     mut arrows: Query<&mut DashDirectionArrow>,
-    audio_assets: Res<AudioAssets>,
     time: Res<Time>,
     cfg: Res<Config>,
 ) {
     let dt = time.delta_secs();
 
-    if let Ok((entity, transform, mut charging, children)) = player.single_mut() {
-        if input.dash() {
+    if input.dash() {
+        if let Ok((transform, mut charging, children)) = player.single_mut() {
             let pos = transform.translation.xy();
             let dir = (**mouse_pos - pos).normalize_or_zero();
             let power = dt / cfg.game.player_charging_power_duration;
@@ -309,7 +308,20 @@ fn player_charge_dash_system(
                     break;
                 }
             }
-        } else {
+        }
+    }
+}
+
+fn player_release_dash_system(
+    mut commands: Commands,
+    input: Res<Input>,
+    mut player: Query<(Entity, &mut ChargingDash, &Children), (With<Player>, With<ChargingDash>)>,
+    mut arrows: Query<&mut DashDirectionArrow>,
+    audio_assets: Res<AudioAssets>,
+    cfg: Res<Config>,
+) {
+    if !input.dash() {
+        if let Ok((entity, mut charging, children)) = player.single_mut() {
             commands.entity(entity).remove::<ChargingDash>();
 
             if let Some(sound_entity) = charging.sound_entity.take() {
