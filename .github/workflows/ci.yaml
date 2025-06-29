@@ -27,7 +27,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install wasm target
-        uses: rustup target add wasm32-unknown-unknown
+        run: rustup target add wasm32-unknown-unknown
 
       - name: Cache
         uses: Swatinem/rust-cache@v2
