@@ -3,7 +3,7 @@ use bevy_framepace::{FramepacePlugin, FramepaceSettings};
 
 use crate::{
     asset_loader::{AudioAssets, ImageAssets},
-    config::GameConfig,
+    config::Config,
     game_state::GameState,
     player::Player,
 };
@@ -151,7 +151,7 @@ fn camera_follow(
     players: Query<&Transform, With<Player>>,
     mut cameras: Query<&mut Transform, (With<Camera>, Without<Player>)>,
     time: Res<Time>,
-    config: Res<GameConfig>,
+    cfg: Res<Config>,
 ) {
     let dt = time.delta_secs();
 
@@ -161,13 +161,13 @@ fn camera_follow(
         for mut camera_transform in &mut cameras {
             let current_pos = camera_transform.translation;
 
-            let target_x = target_pos.x.clamp(config.cam_min_x, config.cam_max_x);
-            let target_y = target_pos.y.clamp(config.cam_min_y, config.cam_max_y);
+            let target_x = target_pos.x.clamp(cfg.game.cam_min_x, cfg.game.cam_max_x);
+            let target_y = target_pos.y.clamp(cfg.game.cam_min_y, cfg.game.cam_max_y);
 
             camera_transform.translation.x =
-                current_pos.x.lerp(target_x, config.cam_smoothing * dt);
+                current_pos.x.lerp(target_x, cfg.game.cam_smoothing * dt);
             camera_transform.translation.y =
-                current_pos.y.lerp(target_y, config.cam_smoothing * dt);
+                current_pos.y.lerp(target_y, cfg.game.cam_smoothing * dt);
         }
     }
 }

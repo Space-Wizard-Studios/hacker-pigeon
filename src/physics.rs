@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use std::time::Duration;
 
 use crate::{
-    config::GameConfig,
+    config::Config,
     enemy::{Enemy, WeakSpot},
     game_state::GameState,
     health::Health,
@@ -79,34 +79,34 @@ fn gravity_system(
         (&mut Velocity, Option<&ChargingDash>),
         (Without<Grounded>, Without<Dashing>, Without<Airborne>),
     >,
-    config: Res<GameConfig>,
     time: Res<Time>,
+    cfg: Res<Config>,
 ) {
     let dt = time.delta_secs();
 
     for (mut vel, charging_opt) in query.iter_mut() {
         let multiplier = if charging_opt.is_some() {
-            config.charging_gravity_multiplier
+            cfg.game.charging_gravity_multiplier
         } else {
             1.0
         };
 
-        vel.target.y += config.gravity * multiplier * dt;
+        vel.target.y += cfg.game.gravity * multiplier * dt;
     }
 }
 
 fn friction_system(
     mut query: Query<(&mut Velocity, Option<&Grounded>)>,
     time: Res<Time>,
-    config: Res<GameConfig>,
+    cfg: Res<Config>,
 ) {
     let dt = time.delta_secs();
 
     for (mut vel, grounded_opt) in query.iter_mut() {
         let friction = if grounded_opt.is_some() {
-            config.ground_friction
+            cfg.game.ground_friction
         } else {
-            config.air_friction
+            cfg.game.air_friction
         };
 
         vel.target.x *= (1.0 - friction * dt).max(0.0);
@@ -117,14 +117,14 @@ fn friction_system(
 fn apply_velocity_system(
     mut query: Query<(&mut Transform, &mut Velocity)>,
     time: Res<Time>,
-    config: Res<GameConfig>,
+    cfg: Res<Config>,
 ) {
     let dt = time.delta_secs();
 
     for (mut transform, mut vel) in query.iter_mut() {
         vel.current = vel
             .current
-            .lerp(vel.target, (config.movement_smoothing * dt).min(1.0));
+            .lerp(vel.target, (cfg.game.movement_smoothing * dt).min(1.0));
 
         transform.translation.x += vel.current.x * dt;
         transform.translation.y += vel.current.y * dt;
@@ -134,15 +134,15 @@ fn apply_velocity_system(
 fn apply_grounding_system(
     mut commands: Commands,
     mut query: Query<(Entity, &mut Transform, &mut Velocity)>,
-    config: Res<GameConfig>,
+    cfg: Res<Config>,
 ) {
     for (entity, mut transform, mut vel) in query.iter_mut() {
-        let is_below_or_on_floor = transform.translation.y <= config.floor_y;
-        let is_above_ground_threshold = transform.translation.y > config.floor_y + 0.01;
+        let is_below_or_on_floor = transform.translation.y <= cfg.game.floor_y;
+        let is_above_ground_threshold = transform.translation.y > cfg.game.floor_y + 0.01;
         let is_falling = vel.current.y <= 0.0;
 
         if is_below_or_on_floor && is_falling {
-            transform.translation.y = config.floor_y;
+            transform.translation.y = cfg.game.floor_y;
             vel.current.y = 0.0;
             vel.target.y = 0.0;
 

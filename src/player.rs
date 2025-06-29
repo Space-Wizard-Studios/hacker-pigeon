@@ -3,7 +3,7 @@ use bevy::{audio, prelude::*, sprite::AlphaMode2d};
 use crate::{
     animation::{Animation, AnimationDir},
     asset_loader::{AudioAssets, ImageAssets},
-    config::GameConfig,
+    config::Config,
     game_state::GameState,
     health::Health,
     input::{Input, MousePos},
@@ -188,49 +188,49 @@ fn player_movement_system(
     input: Res<Input>,
     mut player: Query<&mut Velocity, (With<Player>, Without<ChargingDash>, Without<Dashing>)>,
     time: Res<Time>,
-    config: Res<GameConfig>,
+    cfg: Res<Config>,
 ) {
     let dt = time.delta_secs();
 
     if let Ok(mut vel) = player.single_mut() {
         let input = input.dir();
 
-        vel.target.x += input.x * config.player_x_acceleration * dt;
-        vel.target.y += input.y * config.player_y_acceleration * dt;
+        vel.target.x += input.x * cfg.game.player_x_acceleration * dt;
+        vel.target.y += input.y * cfg.game.player_y_acceleration * dt;
 
         vel.target.x = vel
             .target
             .x
-            .clamp(-config.player_max_x_speed, config.player_max_x_speed);
-        vel.target.y = vel
-            .target
-            .y
-            .clamp(config.player_min_fall_speed, config.player_max_rise_speed);
+            .clamp(-cfg.game.player_max_x_speed, cfg.game.player_max_x_speed);
+        vel.target.y = vel.target.y.clamp(
+            cfg.game.player_min_fall_speed,
+            cfg.game.player_max_rise_speed,
+        );
     }
 }
 
 fn player_bounds_system(
     mut player: Query<(&mut Transform, &mut Velocity), With<Player>>,
-    config: Res<GameConfig>,
+    cfg: Res<Config>,
 ) {
     if let Ok((mut transform, mut vel)) = player.single_mut() {
         let x = transform.translation.x;
 
-        if x > config.x_limit && vel.target.x > 0. {
+        if x > cfg.game.x_limit && vel.target.x > 0. {
             vel.target.x = 0.;
             vel.current.x = 0.;
-            transform.translation.x = config.x_limit;
-        } else if x < -config.x_limit && vel.target.x < 0. {
+            transform.translation.x = cfg.game.x_limit;
+        } else if x < -cfg.game.x_limit && vel.target.x < 0. {
             vel.target.x = 0.;
             vel.current.x = 0.;
-            transform.translation.x = -config.x_limit;
+            transform.translation.x = -cfg.game.x_limit;
         }
 
-        let overstep = transform.translation.y - config.ceiling_y;
+        let overstep = transform.translation.y - cfg.game.ceiling_y;
 
         if overstep > 0.0 {
-            let pull = -overstep * config.spring_force;
-            vel.target.y = pull.clamp(config.max_pull, 0.0);
+            let pull = -overstep * cfg.game.spring_force;
+            vel.target.y = pull.clamp(cfg.game.max_pull, 0.0);
         }
     }
 }
@@ -288,7 +288,7 @@ fn player_charge_dash_system(
     mut arrows: Query<&mut DashDirectionArrow>,
     audio_assets: Res<AudioAssets>,
     time: Res<Time>,
-    config: Res<GameConfig>,
+    cfg: Res<Config>,
 ) {
     let dt = time.delta_secs();
 
@@ -296,7 +296,7 @@ fn player_charge_dash_system(
         if input.dash() {
             let pos = transform.translation.xy();
             let dir = (**mouse_pos - pos).normalize_or_zero();
-            let power = dt / config.player_charging_power_duration;
+            let power = dt / cfg.game.player_charging_power_duration;
 
             charging.dir = dir;
             charging.power += power;
@@ -327,12 +327,12 @@ fn player_charge_dash_system(
 
             commands.entity(entity).insert(Dashing::new(
                 charging.dir * dash_power,
-                config.player_dash_duration,
+                cfg.game.player_dash_duration,
             ));
             commands.entity(entity).insert(DashEffect::new(
                 charging.dir,
                 dash_power,
-                config.player_dash_immunity_duration * dash_power,
+                cfg.game.player_dash_immunity_duration * dash_power,
             ));
 
             commands.spawn((
@@ -392,14 +392,14 @@ fn player_dash_system(
     mut commands: Commands,
     mut player: Query<(Entity, &mut Velocity, &mut Dashing), With<Player>>,
     time: Res<Time>,
-    config: Res<GameConfig>,
+    cfg: Res<Config>,
 ) {
     if let Ok((entity, mut vel, mut dash)) = player.single_mut() {
-        vel.target = dash.power * config.player_dash_speed;
+        vel.target = dash.power * cfg.game.player_dash_speed;
 
         dash.timer.tick(time.delta());
         if dash.timer.finished() {
-            vel.target = dash.power.normalize_or_zero() * config.player_max_x_speed;
+            vel.target = dash.power.normalize_or_zero() * cfg.game.player_max_x_speed;
             commands.entity(entity).remove::<Dashing>();
         }
     }
@@ -424,10 +424,11 @@ fn player_nuke_system(
     mut materials: ResMut<Assets<ColorMaterial>>,
     audio_assets: Res<AudioAssets>,
     player: Query<(Entity, &Transform, &DashEffect), With<Player>>,
-    config: Res<GameConfig>,
+    cfg: Res<Config>,
 ) {
     if let Ok((entity, transform, dash)) = player.single() {
-        if transform.translation.y <= config.floor_y + 0.05 && dash.dir.y < 0. && dash.power >= 1. {
+        if transform.translation.y <= cfg.game.floor_y + 0.05 && dash.dir.y < 0. && dash.power >= 1.
+        {
             let mesh = meshes.add(Circle::new(96.));
             let material = materials.add(ColorMaterial {
                 color: Color::srgb_u8(200, 10, 10),

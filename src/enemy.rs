@@ -3,7 +3,7 @@ use bevy_egui::egui::emath::ease_in_ease_out;
 use rand::Rng;
 
 use crate::{
-    config::GameConfig,
+    config::Config,
     game_state::GameState,
     health::Health,
     physics::{Airborne, Radius, Velocity},
@@ -170,14 +170,14 @@ fn spawn_enemies(
     enemies: Query<Entity, With<Enemy>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    config: Res<GameConfig>,
+    cfg: Res<Config>,
 ) {
     for enemy in &enemies {
         commands.entity(enemy).despawn();
     }
 
     for _ in 0..3 {
-        spawn_enemy(&mut commands, &mut meshes, &mut materials, &config);
+        spawn_enemy(&mut commands, &mut meshes, &mut materials, &cfg);
     }
 }
 
@@ -188,7 +188,7 @@ fn enemy_respawn_system(
     enemies: Query<(), With<Enemy>>,
     mut respawn_state: ResMut<EnemyRespawnTimer>,
     time: Res<Time>,
-    config: Res<GameConfig>,
+    cfg: Res<Config>,
 ) {
     if enemies.iter().count() > 3 {
         respawn_state.timer = None;
@@ -207,7 +207,7 @@ fn enemy_respawn_system(
             let mut rng = rand::rng();
             let n = rng.random_range(1..=3);
             for _ in 0..n {
-                spawn_enemy(&mut commands, &mut meshes, &mut materials, &config);
+                spawn_enemy(&mut commands, &mut meshes, &mut materials, &cfg);
             }
         }
     }
@@ -217,14 +217,14 @@ fn spawn_enemy(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
-    config: &GameConfig,
+    cfg: &Config,
 ) {
     let mut rng = rand::rng();
 
     let is_ground_enemy = rng.random_bool(0.3);
 
     if is_ground_enemy {
-        spawn_ground_enemy(commands, meshes, materials, &mut rng, config);
+        spawn_ground_enemy(commands, meshes, materials, &mut rng, cfg);
     } else {
         spawn_fly_enemy(commands, meshes, materials, &mut rng);
     }
@@ -282,10 +282,10 @@ fn spawn_ground_enemy(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     rng: &mut impl Rng,
-    config: &GameConfig,
+    cfg: &Config,
 ) {
     let x = rng.random_range(-150.0..150.0);
-    let y = config.floor_y + 16.;
+    let y = cfg.game.floor_y + 16.;
     let position = Vec3::new(x, y, 0.);
 
     let weak_spot = WeakSpot::new(WeakSpotLocation::South, 16.);

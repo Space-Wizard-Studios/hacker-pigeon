@@ -22,16 +22,15 @@ mod ui;
 mod world;
 
 use crate::{
-    animation::AnimationPlugin, asset_loader::AssetLoaderPlugin, config::GameConfig,
-    enemy::EnemyPlugin, health::HealthPlugin, input::InputPlugin, physics::PhysicsPlugin,
-    player::PlayerPlugin, score::ScorePlugin, ui::UIPlugin, world::WorldPlugin,
+    animation::AnimationPlugin, asset_loader::AssetLoaderPlugin, enemy::EnemyPlugin,
+    health::HealthPlugin, input::InputPlugin, physics::PhysicsPlugin, player::PlayerPlugin,
+    score::ScorePlugin, ui::UIPlugin, world::WorldPlugin,
 };
 
 fn main() {
     console_error_panic_hook::set_once();
 
     let args = Args::parse();
-    let config = GameConfig::load("assets/config/game_config.ron");
 
     App::new()
         .add_plugins(
@@ -52,7 +51,6 @@ fn main() {
                 }),
         )
         .insert_resource(args)
-        .insert_resource(config)
         .add_plugins((
             AssetLoaderPlugin,
             WorldPlugin,

@@ -1,8 +1,8 @@
 use bevy::prelude::*;
+use bevy::reflect::TypePath;
 use serde::Deserialize;
-use std::fs;
 
-#[derive(Resource, Debug, Deserialize)]
+#[derive(Asset, TypePath, Debug, Deserialize, Clone)]
 pub struct GameConfig {
     pub gravity: f32,
     pub charging_gravity_multiplier: f32,
@@ -32,9 +32,7 @@ pub struct GameConfig {
     pub cam_smoothing: f32,
 }
 
-impl GameConfig {
-    pub fn load(path: &str) -> GameConfig {
-        let content = fs::read_to_string(path).expect("Failed to read config file");
-        ron::de::from_str(&content).expect("Failed to parse config file")
-    }
+#[derive(Resource, Debug)]
+pub struct Config {
+    pub game: GameConfig,
 }

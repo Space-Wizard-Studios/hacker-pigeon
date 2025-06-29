@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
 
-use crate::game_state::GameState;
+use crate::{
+    config::{Config, GameConfig},
+    game_state::GameState,
+};
 
 #[derive(AssetCollection, Resource)]
 pub struct ImageAssets {
@@ -34,15 +37,36 @@ pub struct AudioAssets {
     pub boom: Handle<AudioSource>,
 }
 
+#[derive(AssetCollection, Resource)]
+struct ConfigAssets {
+    #[asset(path = "config/game_config.ron")]
+    game_config: Handle<GameConfig>,
+}
+
 pub struct AssetLoaderPlugin;
 
 impl Plugin for AssetLoaderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_loading_state(
-            LoadingState::new(GameState::AssetLoading)
-                .load_collection::<ImageAssets>()
-                .load_collection::<AudioAssets>()
-                .continue_to_state(GameState::GameSetup),
-        );
+        app.init_collection::<ConfigAssets>()
+            .add_loading_state(
+                LoadingState::new(GameState::AssetLoading)
+                    .load_collection::<ImageAssets>()
+                    .load_collection::<AudioAssets>()
+                    .load_collection::<ConfigAssets>()
+                    .continue_to_state(GameState::GameSetup),
+            )
+            .add_systems(OnExit(GameState::AssetLoading), insert_config_resource);
+    }
+}
+
+fn insert_config_resource(
+    mut commands: Commands,
+    config_assets: Res<ConfigAssets>,
+    assets: Res<Assets<GameConfig>>,
+) {
+    if let Some(game_config) = assets.get(&config_assets.game_config) {
+        commands.insert_resource(Config {
+            game: game_config.clone(),
+        });
     }
 }
