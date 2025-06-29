@@ -41,7 +41,7 @@ jobs:
         run: cargo install --locked trunk
 
       - name: Build
-        run: trunk build -d dist
+        run: trunk build -M -d dist --public-url https://space-wizard-studios.github.io/hacker-pigeon/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
