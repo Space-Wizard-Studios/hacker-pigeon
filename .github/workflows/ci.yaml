@@ -40,7 +40,9 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Setup Trunk
-        run: cargo install --locked trunk
+        run: |
+          cargo install --locked trunk
+          cargo install wasm-bindgen-cli
 
       - name: Build
         run: trunk build --release -M -d dist --public-url ./
