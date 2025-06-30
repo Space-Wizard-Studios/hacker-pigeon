@@ -12,7 +12,9 @@
 </head>
 
 <body>
-  <link data-trunk rel="rust" href="Cargo.toml" data-no-wasm-opt data-initializer="./initializer.mjs" />
+  <link data-trunk rel="rust" href="Cargo.toml"
+    data-wasm-opt-params="--enable-bulk-memory --enable-reference-types --enable-mutable-globals"
+    data-initializer="./initializer.mjs" />
 
   <script type="module">
     addEventListener("TrunkApplicationStarted", (event) => {
