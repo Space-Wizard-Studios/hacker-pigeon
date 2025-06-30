@@ -51,7 +51,7 @@ jobs:
         run: |
           export WASM_FILE=$(find dist -name "*_bg.wasm" | head -n 1)
           echo "Optimize $WASM_FILE"
-          wasm-opt -Oz -o "$WASM_FILE" "$WASM_FILE"
+          wasm-opt -Oz --enable-bulk-memory -o "$WASM_FILE" "$WASM_FILE"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
