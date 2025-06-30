@@ -205,12 +205,12 @@ fn player_damage_drone_system(
     mut commands: Commands,
     mut score: ResMut<Score>,
     mut player: Query<
-        (&Transform, &Radius, &mut Velocity, &mut DashEffect),
+        (Entity, &Transform, &Radius, &mut Velocity, &mut DashEffect),
         (With<Player>, Without<CollisionImmunity>),
     >,
     enemies: Query<(Entity, &Transform, &Radius, &WeakSpot), With<Enemy>>,
 ) {
-    if let Ok((player_transform, radius, mut vel, mut dash)) = player.single_mut() {
+    if let Ok((player, player_transform, radius, mut vel, mut dash)) = player.single_mut() {
         let player_pos = player_transform.translation.truncate();
         let player_radius = **radius;
 
@@ -245,12 +245,14 @@ fn player_damage_drone_system(
                     let dy = (enemy_pos.y - player_pos.y).abs();
 
                     if dx > dy {
-                        vel.target.x *= -1.;
-                        vel.current.x *= -1.;
+                        vel.target.x *= -0.6;
+                        vel.current.x *= -0.6;
                     } else {
-                        vel.target.y *= -1.;
-                        vel.current.y *= -1.;
+                        vel.target.y *= -0.6;
+                        vel.current.y *= -0.6;
                     }
+
+                    commands.entity(player).remove::<Dashing>();
                 }
             }
         }
