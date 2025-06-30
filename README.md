@@ -26,13 +26,13 @@ Seu papel na rede é simples e vital:
 
 ## Apresentação oficial da CRANE
 
-Na CRANE., acreditamos que uma cidade organizada é uma cidade feliz.
-Nosso compromisso é com o equilíbrio, a segurança e o bem-estar de todos os cidadãos que chamam este lugar de lar.
-
-Por meio de uma gestão inteligente e sustentável, otimizamos recursos, monitoramos o ambiente e garantimos que as operações aconteçam em harmonia com a natureza e as necessidades humanas.
-
-Cada decisão é pensada para construir um futuro melhor — onde tecnologia e cuidado caminham juntos para criar espaços mais seguros, limpos e conectados.
-
-Aqui, sua vida é protegida por um sistema que valoriza a transparência, a eficiência e a responsabilidade social.
-
-CRANE - Seu futuro, nosso compromisso.
+> Na CRANE., acreditamos que uma cidade organizada é uma cidade feliz.
+> Nosso compromisso é com o equilíbrio, a segurança e o bem-estar de todos os cidadãos que chamam este lugar de lar.
+>
+> Por meio de uma gestão inteligente e sustentável, otimizamos recursos, monitoramos o ambiente e garantimos que as operações aconteçam em harmonia com a natureza e as necessidades humanas.
+>
+> Cada decisão é pensada para construir um futuro melhor - onde tecnologia e cuidado caminham juntos para criar espaços mais seguros, limpos e conectados.
+> 
+> Aqui, sua vida é protegida por um sistema que valoriza a transparência, a eficiência e a responsabilidade social.
+> 
+> CRANE - Seu futuro, nosso compromisso.
