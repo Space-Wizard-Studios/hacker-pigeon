@@ -1,5 +1,5 @@
-# P.R.U.U. - Protocol for a Unified Urban Resistance
-> P.R.U.U. - Protocolo para a Resistência Urbana Unificada
+# P.R.U.U. - Project for Radical Urban Uprising
+> P.R.U.U. - Projeto de Resistência Urbana Unificada
  
 Jogo de ação/puzzle com elementos de time-attack e minigames de hacking, ambientado em um mundo urbano distópico controlado por sistemas de vigilância corporativa.
 
