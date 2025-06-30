@@ -2,7 +2,7 @@ export default function myInitializer() {
   return {
     onStart: () => {
       console.log('Loading...');
-      console.time('game-initializer');
+      console.time('initializer');
     },
     onProgress: ({ current, total }) => {
       if (!total) {
@@ -13,11 +13,10 @@ export default function myInitializer() {
     },
     onComplete: () => {
       console.log('Loading... done!');
-      console.timeEnd('game-initializer');
+      console.timeEnd('initializer');
     },
-    onSuccess: (wasm) => {
+    onSuccess: () => {
       console.log('Loading... successful!');
-      console.log('WebAssembly: ', wasm);
     },
     onFailure: (error) => {
       console.warn('Loading... failed!', error);
