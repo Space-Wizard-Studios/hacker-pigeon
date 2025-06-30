@@ -20,7 +20,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install development libraries
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev binaryen
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -41,7 +43,13 @@ jobs:
         run: cargo install --locked trunk
 
       - name: Build
-        run: trunk build -M -d dist --public-url ./
+        run: trunk build --release -M -d dist --public-url ./
+
+      - name: Optimize WASM
+        run: |
+          export WASM_FILE=$(find dist -name "*_bg.wasm" | head -n 1)
+          echo "Optimize $WASM_FILE"
+          wasm-opt -Oz -o "$WASM_FILE" "$WASM_FILE"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

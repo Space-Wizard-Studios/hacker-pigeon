@@ -29,6 +29,8 @@ opt-level = 1
 opt-level = 3
 
 [profile.release]
-opt-level = 's'
+opt-level = "z"
 lto = true
 codegen-units = 1
+panic = "abort"
+strip = true
