@@ -45,13 +45,7 @@ jobs:
           cargo install wasm-bindgen-cli
 
       - name: Build
-        run: trunk build --release -M -d dist --public-url ./
-
-      - name: Optimize WASM
-        run: |
-          export WASM_FILE=$(find dist -name "*_bg.wasm" | head -n 1)
-          echo "Optimize $WASM_FILE"
-          wasm-opt -Oz --enable-bulk-memory -o "$WASM_FILE" "$WASM_FILE"
+        run: trunk build --release
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
