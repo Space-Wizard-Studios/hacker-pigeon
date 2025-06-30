@@ -13,7 +13,7 @@
 
 <body>
   <link data-trunk rel="rust" href="Cargo.toml"
-    data-wasm-opt-params="--enable-bulk-memory --enable-reference-types --enable-mutable-globals"
+    data-wasm-opt-params="-Oz --enable-bulk-memory --flexible-inline-max-function-size 4294967295 --all-features"
     data-initializer="./initializer.mjs" />
 
   <script type="module">
