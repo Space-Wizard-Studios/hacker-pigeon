@@ -1,5 +1,4 @@
 #![allow(clippy::type_complexity)]
-extern crate console_error_panic_hook;
 
 use args::Args;
 use bevy::{
@@ -23,6 +22,9 @@ mod score;
 mod ui;
 mod world;
 
+#[cfg(target_arch = "wasm32")]
+extern crate console_error_panic_hook;
+
 use crate::{
     animation::AnimationPlugin, asset_loader::AssetLoaderPlugin, enemy::EnemyPlugin,
     health::HealthPlugin, input::InputPlugin, physics::PhysicsPlugin, player::PlayerPlugin,
@@ -30,6 +32,7 @@ use crate::{
 };
 
 fn main() {
+    #[cfg(target_arch = "wasm32")]
     console_error_panic_hook::set_once();
 
     let args = Args::parse();
