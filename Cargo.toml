@@ -24,6 +24,7 @@ bevy_common_assets = { version = "0.13.0", default-features = false, features = 
 
 [profile.dev]
 opt-level = 1
+debug = true
 
 [profile.dev.package."*"]
 opt-level = 3
@@ -33,4 +34,8 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 panic = "abort"
-strip = true
+strip = "symbols"
+debug = false
+debug-assertions = false
+overflow-checks = false
+incremental = false

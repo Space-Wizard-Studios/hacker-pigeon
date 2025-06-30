@@ -2,5 +2,4 @@
 runner = "wasm-server-runner"
 rustflags = [
   "--cfg", "getrandom_backend=\"wasm_js\"",
-  "-C", "target-feature=+bulk-memory"
 ]
