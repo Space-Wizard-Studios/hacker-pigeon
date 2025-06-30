@@ -47,7 +47,6 @@ bevy_common_assets = { version = "0.13.0", default-features = false, features = 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 bevy = { version = "0.16.1", features = [
 	"webgl2",
-	"webgpu",
 	"web",
 	"trace_chrome",
 ] }
