@@ -43,7 +43,7 @@ jobs:
         run: cargo install --locked trunk
 
       - name: Build
-        run: trunk build --release -M -d dist --public-url ./
+        run: RUSTFLAGS='-C target-feature=+bulk-memory' trunk build --release -M -d dist --public-url ./
 
       - name: Optimize WASM
         run: |
