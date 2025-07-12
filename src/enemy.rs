@@ -96,10 +96,10 @@ impl WeakSpotLocation {
             Self::South => Vec2::NEG_Y,
             Self::West => Vec2::NEG_X,
             Self::East => Vec2::X,
-            Self::_NorthEast => Vec2::new(-1., 1.).normalize(),
-            Self::_SouthEast => Vec2::new(-1., -1.).normalize(),
-            Self::_NorthWest => Vec2::new(1., 1.).normalize(),
-            Self::_SouthWest => Vec2::new(1., -1.).normalize(),
+            Self::_NorthEast => Vec2::new(1., 1.).normalize(),
+            Self::_SouthEast => Vec2::new(1., -1.).normalize(),
+            Self::_NorthWest => Vec2::new(-1., 1.).normalize(),
+            Self::_SouthWest => Vec2::new(-1., -1.).normalize(),
         }
     }
 
