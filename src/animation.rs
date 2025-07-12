@@ -23,13 +23,13 @@ impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (animate_player).run_if(in_state(GameState::GameRunning)),
+            (animation_system).run_if(in_state(GameState::GameRunning)),
         );
     }
 }
 
-fn animate_player(time: Res<Time>, mut player: Query<(&mut Animation, &mut Sprite, &Velocity)>) {
-    if let Ok((mut anim, mut sprite, vel)) = player.single_mut() {
+fn animation_system(time: Res<Time>, mut object: Query<(&mut Animation, &mut Sprite, &Velocity)>) {
+    if let Ok((mut anim, mut sprite, vel)) = object.single_mut() {
         if vel.target.x.abs() != 0. {
             sprite.flip_x = vel.target.x < 0.;
         }

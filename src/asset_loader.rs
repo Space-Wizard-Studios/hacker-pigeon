@@ -9,17 +9,26 @@ use crate::{
 
 #[derive(AssetCollection, Resource)]
 pub struct ImageAssets {
-    #[asset(texture_atlas_layout(tile_size_x = 32, tile_size_y = 32, columns = 4, rows = 1))]
-    pub pigeon_fly_sheet_layout: Handle<TextureAtlasLayout>,
-    #[asset(path = "pigeon/flying.png")]
-    pub pigeon_fly_sheet: Handle<Image>,
-
     #[asset(path = "world/sky.png")]
     pub bg_sky: Handle<Image>,
     #[asset(path = "world/ground.png")]
     pub bg_ground: Handle<Image>,
     #[asset(path = "world/buildings.png")]
     pub bg_buildings: Handle<Image>,
+
+    #[asset(texture_atlas_layout(tile_size_x = 32, tile_size_y = 32, columns = 4, rows = 1))]
+    pub pigeon_fly_sheet_layout: Handle<TextureAtlasLayout>,
+    #[asset(path = "pigeon/flying.png")]
+    pub pigeon_fly_sheet: Handle<Image>,
+    #[asset(texture_atlas_layout(tile_size_x = 32, tile_size_y = 32, columns = 4, rows = 1))]
+    pub _pigeon_drop_sheet_layout: Handle<TextureAtlasLayout>,
+    #[asset(path = "pigeon/drop.png")]
+    pub _pigeon_drop_sheet: Handle<Image>,
+
+    #[asset(texture_atlas_layout(tile_size_x = 32, tile_size_y = 32, columns = 1, rows = 5))]
+    pub enemy_drone_layout: Handle<TextureAtlasLayout>,
+    #[asset(path = "enemies/drone_ball.png")]
+    pub enemy_drone: Handle<Image>,
 }
 
 #[derive(AssetCollection, Resource)]
@@ -36,6 +45,16 @@ pub struct AudioAssets {
 
     #[asset(path = "audio/jsfxr/player/drop.wav")]
     pub boom: Handle<AudioSource>,
+
+    #[asset(path = "audio/jsfxr/player/hit.wav")]
+    pub _player_hit: Handle<AudioSource>,
+    #[asset(path = "audio/jsfxr/player/death.wav")]
+    pub _player_death: Handle<AudioSource>,
+
+    #[asset(path = "audio/jsfxr/enemy/hit.wav")]
+    pub _enemy_hit: Handle<AudioSource>,
+    #[asset(path = "audio/jsfxr/enemy/death.wav")]
+    pub _enemy_death: Handle<AudioSource>,
 }
 
 pub struct AssetLoaderPlugin;

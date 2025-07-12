@@ -139,8 +139,8 @@ fn spawn_player(
         commands.entity(nuke).despawn();
     }
 
-    let image = image_assets.pigeon_fly_sheet.clone();
     let layout = image_assets.pigeon_fly_sheet_layout.clone();
+    let image = image_assets.pigeon_fly_sheet.clone();
 
     let animation = Animation {
         first: 0,

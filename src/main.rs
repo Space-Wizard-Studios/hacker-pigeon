@@ -3,6 +3,7 @@
 use args::Args;
 use bevy::{
     asset::AssetMetaCheck,
+    audio::{self, AudioPlugin},
     log::{Level, LogPlugin},
     prelude::*,
 };
@@ -58,6 +59,10 @@ fn main() {
                         prevent_default_event_handling: false,
                         ..default()
                     }),
+                    ..default()
+                })
+                .set(AudioPlugin {
+                    global_volume: audio::GlobalVolume::new(audio::Volume::SILENT),
                     ..default()
                 }),
         )
