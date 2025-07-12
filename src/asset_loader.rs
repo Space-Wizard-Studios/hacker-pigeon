@@ -21,9 +21,9 @@ pub struct ImageAssets {
     #[asset(path = "pigeon/flying.png")]
     pub pigeon_fly_sheet: Handle<Image>,
     #[asset(texture_atlas_layout(tile_size_x = 32, tile_size_y = 32, columns = 4, rows = 1))]
-    pub pigeon_drop_sheet_layout: Handle<TextureAtlasLayout>,
+    pub _pigeon_drop_sheet_layout: Handle<TextureAtlasLayout>,
     #[asset(path = "pigeon/drop.png")]
-    pub pigeon_drop_sheet: Handle<Image>,
+    pub _pigeon_drop_sheet: Handle<Image>,
 
     #[asset(texture_atlas_layout(tile_size_x = 32, tile_size_y = 32, columns = 1, rows = 5))]
     pub enemy_drone_layout: Handle<TextureAtlasLayout>,
@@ -47,14 +47,14 @@ pub struct AudioAssets {
     pub boom: Handle<AudioSource>,
 
     #[asset(path = "audio/jsfxr/player/hit.wav")]
-    pub player_hit: Handle<AudioSource>,
+    pub _player_hit: Handle<AudioSource>,
     #[asset(path = "audio/jsfxr/player/death.wav")]
-    pub player_death: Handle<AudioSource>,
+    pub _player_death: Handle<AudioSource>,
 
     #[asset(path = "audio/jsfxr/enemy/hit.wav")]
-    pub enemy_hit: Handle<AudioSource>,
+    pub _enemy_hit: Handle<AudioSource>,
     #[asset(path = "audio/jsfxr/enemy/death.wav")]
-    pub enemy_death: Handle<AudioSource>,
+    pub _enemy_death: Handle<AudioSource>,
 }
 
 pub struct AssetLoaderPlugin;

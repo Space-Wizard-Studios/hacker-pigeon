@@ -1,4 +1,4 @@
-use bevy::{prelude::*, scene::ron::de};
+use bevy::prelude::*;
 use bevy_egui::egui::emath::ease_in_ease_out;
 use rand::Rng;
 
@@ -57,10 +57,10 @@ pub enum WeakSpotLocation {
     South,
     West,
     East,
-    NorthEast,
-    SouthEast,
-    NorthWest,
-    SouthWest,
+    _NorthEast,
+    _SouthEast,
+    _NorthWest,
+    _SouthWest,
 }
 
 impl WeakSpotLocation {
@@ -75,7 +75,7 @@ impl WeakSpotLocation {
         }
     }
 
-    pub fn new_random(rng: &mut impl Rng) -> Self {
+    pub fn _new_random(rng: &mut impl Rng) -> Self {
         let dir = rng.random_range(0..=7);
 
         match dir {
@@ -83,10 +83,10 @@ impl WeakSpotLocation {
             1 => Self::South,
             2 => Self::West,
             3 => Self::East,
-            4 => Self::NorthEast,
-            5 => Self::SouthEast,
-            6 => Self::NorthWest,
-            _ => Self::SouthWest,
+            4 => Self::_NorthEast,
+            5 => Self::_SouthEast,
+            6 => Self::_NorthWest,
+            _ => Self::_SouthWest,
         }
     }
 
@@ -96,10 +96,10 @@ impl WeakSpotLocation {
             Self::South => Vec2::NEG_Y,
             Self::West => Vec2::NEG_X,
             Self::East => Vec2::X,
-            Self::NorthEast => Vec2::new(-1., 1.).normalize(),
-            Self::SouthEast => Vec2::new(-1., -1.).normalize(),
-            Self::NorthWest => Vec2::new(1., 1.).normalize(),
-            Self::SouthWest => Vec2::new(1., -1.).normalize(),
+            Self::_NorthEast => Vec2::new(-1., 1.).normalize(),
+            Self::_SouthEast => Vec2::new(-1., -1.).normalize(),
+            Self::_NorthWest => Vec2::new(1., 1.).normalize(),
+            Self::_SouthWest => Vec2::new(1., -1.).normalize(),
         }
     }
 
@@ -111,10 +111,10 @@ impl WeakSpotLocation {
             Self::East => -FRAC_PI_2,
             Self::South => std::f32::consts::PI,
             Self::West => FRAC_PI_2,
-            Self::NorthEast => -FRAC_PI_2 * 1.5,
-            Self::SouthEast => -FRAC_PI_2 / 2.0,
-            Self::NorthWest => FRAC_PI_2 * 1.5,
-            Self::SouthWest => FRAC_PI_2 / 2.0,
+            Self::_NorthEast => -FRAC_PI_2 * 1.5,
+            Self::_SouthEast => -FRAC_PI_2 / 2.0,
+            Self::_NorthWest => FRAC_PI_2 * 1.5,
+            Self::_SouthWest => FRAC_PI_2 / 2.0,
         };
 
         Quat::from_rotation_z(angle)
@@ -130,10 +130,10 @@ impl WeakSpotLocation {
             Self::South => 4,
             Self::West => 1,
             Self::East => 3,
-            Self::NorthEast => 4,
-            Self::SouthEast => 4,
-            Self::NorthWest => 4,
-            Self::SouthWest => 4,
+            Self::_NorthEast => 4,
+            Self::_SouthEast => 4,
+            Self::_NorthWest => 4,
+            Self::_SouthWest => 4,
         }
     }
 }
@@ -167,8 +167,8 @@ impl WeakSpot {
         }
     }
 
-    pub fn new_random(rng: &mut impl Rng, side: f32) -> Self {
-        let location = WeakSpotLocation::new_random(rng);
+    pub fn _new_random(rng: &mut impl Rng, side: f32) -> Self {
+        let location = WeakSpotLocation::_new_random(rng);
         let size = location.to_size(side);
         let rotation = location.to_rotation();
         Self {
