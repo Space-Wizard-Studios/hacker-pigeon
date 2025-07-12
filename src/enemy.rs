@@ -1,8 +1,10 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, scene::ron::de};
 use bevy_egui::egui::emath::ease_in_ease_out;
 use rand::Rng;
 
 use crate::{
+    animation::{Animation, AnimationDir},
+    asset_loader::ImageAssets,
     config::Config,
     game_state::GameState,
     health::Health,
@@ -62,6 +64,17 @@ pub enum WeakSpotLocation {
 }
 
 impl WeakSpotLocation {
+    pub fn new_ortho(rng: &mut impl Rng) -> Self {
+        let dir = rng.random_range(0..=3);
+
+        match dir {
+            0 => Self::North,
+            1 => Self::South,
+            2 => Self::West,
+            _ => Self::East,
+        }
+    }
+
     pub fn new_random(rng: &mut impl Rng) -> Self {
         let dir = rng.random_range(0..=7);
 
@@ -81,12 +94,12 @@ impl WeakSpotLocation {
         match self {
             Self::North => Vec2::Y,
             Self::South => Vec2::NEG_Y,
-            Self::West => Vec2::X,
-            Self::East => Vec2::NEG_X,
+            Self::West => Vec2::NEG_X,
+            Self::East => Vec2::X,
             Self::NorthEast => Vec2::new(-1., 1.).normalize(),
             Self::SouthEast => Vec2::new(-1., -1.).normalize(),
             Self::NorthWest => Vec2::new(1., 1.).normalize(),
-            Self::SouthWest => Vec2::new(-1., 1.).normalize(),
+            Self::SouthWest => Vec2::new(1., -1.).normalize(),
         }
     }
 
@@ -110,6 +123,19 @@ impl WeakSpotLocation {
     pub fn to_size(&self, side: f32) -> Vec2 {
         Vec2::new(side, side / 2.)
     }
+
+    pub fn to_atlas_index(&self) -> usize {
+        match self {
+            Self::North => 2,
+            Self::South => 4,
+            Self::West => 1,
+            Self::East => 3,
+            Self::NorthEast => 4,
+            Self::SouthEast => 4,
+            Self::NorthWest => 4,
+            Self::SouthWest => 4,
+        }
+    }
 }
 
 #[derive(Component, Default, Debug)]
@@ -121,6 +147,17 @@ pub struct WeakSpot {
 
 impl WeakSpot {
     pub fn new(location: WeakSpotLocation, side: f32) -> Self {
+        let size = location.to_size(side);
+        let rotation = location.to_rotation();
+        Self {
+            location,
+            size,
+            rotation,
+        }
+    }
+
+    pub fn new_ortho(rng: &mut impl Rng, side: f32) -> Self {
+        let location = WeakSpotLocation::new_ortho(rng);
         let size = location.to_size(side);
         let rotation = location.to_rotation();
         Self {
@@ -168,8 +205,7 @@ impl Plugin for EnemyPlugin {
 fn spawn_enemies(
     mut commands: Commands,
     enemies: Query<Entity, With<Enemy>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    image_assets: Res<ImageAssets>,
     cfg: Res<Config>,
 ) {
     for enemy in &enemies {
@@ -177,14 +213,13 @@ fn spawn_enemies(
     }
 
     for _ in 0..3 {
-        spawn_enemy(&mut commands, &mut meshes, &mut materials, &cfg);
+        spawn_enemy(&mut commands, &image_assets, &cfg);
     }
 }
 
 fn enemy_respawn_system(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    image_assets: Res<ImageAssets>,
     enemies: Query<(), With<Enemy>>,
     mut respawn_state: ResMut<EnemyRespawnTimer>,
     time: Res<Time>,
@@ -207,49 +242,63 @@ fn enemy_respawn_system(
             let mut rng = rand::rng();
             let n = rng.random_range(1..=3);
             for _ in 0..n {
-                spawn_enemy(&mut commands, &mut meshes, &mut materials, &cfg);
+                spawn_enemy(&mut commands, &image_assets, &cfg);
             }
         }
     }
 }
 
-fn spawn_enemy(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
-    cfg: &Config,
-) {
+fn spawn_enemy(commands: &mut Commands, image_assets: &Res<ImageAssets>, cfg: &Config) {
     let mut rng = rand::rng();
 
     let is_ground_enemy = rng.random_bool(0.3);
 
     if is_ground_enemy {
-        spawn_ground_enemy(commands, meshes, materials, &mut rng, cfg);
+        spawn_ground_enemy(commands, image_assets, &mut rng, cfg);
     } else {
-        spawn_fly_enemy(commands, meshes, materials, &mut rng);
+        spawn_fly_enemy(commands, image_assets, &mut rng);
     }
 }
 
-fn spawn_fly_enemy(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
-    rng: &mut impl Rng,
-) {
+fn spawn_fly_enemy(commands: &mut Commands, image_assets: &Res<ImageAssets>, rng: &mut impl Rng) {
     let x = rng.random_range(-150.0..150.0);
     let y = rng.random_range(280.0..360.0);
     let position = Vec3::new(x, y, 0.);
 
-    let weak_spot = WeakSpot::new_random(rng, 16.);
-    let weak_spot_pos = weak_spot.location.to_dir() * 20.;
-    let weak_spot_rot = weak_spot.rotation;
-    let weak_spot_size = weak_spot.size;
-
+    let weak_spot = WeakSpot::new_ortho(rng, 16.);
     let movement = EnemyMovement::new_random(rng);
-    let wobble: EnemyWobble = EnemyWobble::new_random(rng);
+    let wobble = EnemyWobble::new_random(rng);
 
-    let mesh = meshes.add(Circle::new(16.));
-    let material = materials.add(ColorMaterial::from_color(Color::srgb_u8(200, 10, 10)));
+    let layout = image_assets.enemy_drone_layout.clone();
+    let image = image_assets.enemy_drone.clone();
+
+    let animation = Animation {
+        first: 0,
+        last: 0,
+        dir: AnimationDir::Forwards,
+        timer: Timer::from_seconds(0.1, TimerMode::Repeating),
+    };
+
+    let sprite = Sprite::from_atlas_image(
+        image,
+        TextureAtlas {
+            layout,
+            index: animation.first,
+        },
+    );
+
+    let weak_layout = image_assets.enemy_drone_layout.clone();
+    let weak_image = image_assets.enemy_drone.clone();
+
+    let weak_sprite = Sprite {
+        image: weak_image,
+        color: Color::srgba_u8(255, 0, 0, 127),
+        texture_atlas: Some(TextureAtlas {
+            layout: weak_layout,
+            index: weak_spot.location.to_atlas_index(),
+        }),
+        ..default()
+    };
 
     let mut entity = commands.spawn((
         Enemy,
@@ -261,26 +310,20 @@ fn spawn_fly_enemy(
         wobble,
         Airborne,
         weak_spot,
-        Mesh2d(mesh),
-        MeshMaterial2d(material),
+        sprite,
     ));
 
     entity.with_children(|parent| {
         parent.spawn((
-            Transform::from_translation(weak_spot_pos.extend(0.)).with_rotation(weak_spot_rot),
-            Sprite {
-                color: Color::srgb_u8(200, 200, 10),
-                custom_size: Some(weak_spot_size),
-                ..default()
-            },
+            Transform::from_translation(Vec3::new(0., 0., 1.)),
+            weak_sprite,
         ));
     });
 }
 
 fn spawn_ground_enemy(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
+    image_assets: &Res<ImageAssets>,
     rng: &mut impl Rng,
     cfg: &Config,
 ) {
@@ -289,14 +332,38 @@ fn spawn_ground_enemy(
     let position = Vec3::new(x, y, 0.);
 
     let weak_spot = WeakSpot::new(WeakSpotLocation::South, 16.);
-    let weak_spot_pos = weak_spot.location.to_dir() * 16.;
-    let weak_spot_rot = weak_spot.rotation;
-    let weak_spot_size = weak_spot.size;
-
     let movement = EnemyMovement::new_random(rng);
 
-    let mesh = meshes.add(Circle::new(16.));
-    let material = materials.add(ColorMaterial::from_color(Color::srgb_u8(200, 10, 10)));
+    let layout = image_assets.enemy_drone_layout.clone();
+    let image = image_assets.enemy_drone.clone();
+
+    let animation = Animation {
+        first: 0,
+        last: 0,
+        dir: AnimationDir::Forwards,
+        timer: Timer::from_seconds(0.1, TimerMode::Repeating),
+    };
+
+    let sprite = Sprite::from_atlas_image(
+        image,
+        TextureAtlas {
+            layout,
+            index: animation.first,
+        },
+    );
+
+    let weak_layout = image_assets.enemy_drone_layout.clone();
+    let weak_image = image_assets.enemy_drone.clone();
+
+    let weak_sprite = Sprite {
+        image: weak_image,
+        color: Color::srgba_u8(255, 0, 0, 127),
+        texture_atlas: Some(TextureAtlas {
+            layout: weak_layout,
+            index: weak_spot.location.to_atlas_index(),
+        }),
+        ..default()
+    };
 
     let mut entity = commands.spawn((
         Enemy,
@@ -306,18 +373,13 @@ fn spawn_ground_enemy(
         Health::new(1),
         movement,
         weak_spot,
-        Mesh2d(mesh),
-        MeshMaterial2d(material),
+        sprite,
     ));
 
     entity.with_children(|parent| {
         parent.spawn((
-            Transform::from_translation(weak_spot_pos.extend(0.)).with_rotation(weak_spot_rot),
-            Sprite {
-                color: Color::srgb_u8(200, 200, 10),
-                custom_size: Some(weak_spot_size),
-                ..default()
-            },
+            Transform::from_translation(Vec3::new(0., 0., 1.)),
+            weak_sprite,
         ));
     });
 }
