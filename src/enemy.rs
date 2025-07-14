@@ -396,13 +396,13 @@ fn enemy_movement_system(
         let dir = phase.sin().signum();
 
         let t = (timer % period) / period;
-        let speed = ease_in_ease_out(t) * 2. - 1.;
+        let speed = ease_in_out(t) * 2. - 1.;
 
         vel.target.x = movement.speed * speed * dir;
     }
 }
 
-pub fn ease_in_out(t: f32) -> f32 {
+fn ease_in_out(t: f32) -> f32 {
     let t = t.clamp(0.0, 1.0);
     if t < 0.5 {
         2.0 * t * t
