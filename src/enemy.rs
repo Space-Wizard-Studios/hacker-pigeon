@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_egui::egui::emath::ease_in_ease_out;
 use rand::Rng;
 
 use crate::{
@@ -400,6 +399,15 @@ fn enemy_movement_system(
         let speed = ease_in_ease_out(t) * 2. - 1.;
 
         vel.target.x = movement.speed * speed * dir;
+    }
+}
+
+pub fn ease_in_out(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    if t < 0.5 {
+        2.0 * t * t
+    } else {
+        -1.0 + (4.0 - 2.0 * t) * t
     }
 }
 
