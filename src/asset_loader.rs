@@ -66,9 +66,9 @@ impl Plugin for AssetLoaderPlugin {
                 LoadingState::new(GameState::AssetLoading)
                     .load_collection::<ImageAssets>()
                     .load_collection::<AudioAssets>()
-                    .continue_to_state(GameState::GameSetup),
+                    .continue_to_state(GameState::Setup),
             )
-            .add_systems(OnExit(GameState::GameSetup), load_config_resource);
+            .add_systems(OnExit(GameState::Setup), load_config_resource);
     }
 }
 

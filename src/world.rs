@@ -20,10 +20,10 @@ impl Plugin for WorldPlugin {
         app.init_state::<GameState>()
             .insert_resource(ClearColor(Color::srgb_u8(0, 9, 39)))
             .add_plugins(FramepacePlugin)
-            .add_systems(OnEnter(GameState::GameSetup), (setup).chain())
+            .add_systems(OnEnter(GameState::Setup), (setup).chain())
             .add_systems(
                 Update,
-                ((camera_follow, parallax_system).run_if(in_state(GameState::GameRunning)),),
+                ((camera_follow, parallax_system).run_if(in_state(GameState::Running)),),
             );
     }
 }
@@ -144,7 +144,7 @@ fn setup(
         Parallax { factor: 0.01 },
     ));
 
-    commands.set_state(GameState::GameRunning);
+    commands.set_state(GameState::MainMenu);
 }
 
 fn camera_follow(

@@ -189,7 +189,7 @@ pub struct EnemyPlugin;
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(EnemyRespawnTimer::default())
-            .add_systems(OnEnter(GameState::GameRunning), spawn_enemies)
+            .add_systems(OnEnter(GameState::Running), spawn_enemies)
             .add_systems(
                 Update,
                 (
@@ -197,7 +197,7 @@ impl Plugin for EnemyPlugin {
                     enemy_wobble_system,
                     enemy_respawn_system,
                 )
-                    .run_if(in_state(GameState::GameRunning)),
+                    .run_if(in_state(GameState::Running)),
             );
     }
 }

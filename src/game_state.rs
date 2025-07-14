@@ -4,7 +4,8 @@ use bevy::prelude::*;
 pub enum GameState {
     #[default]
     AssetLoading,
-    GameSetup,
-    GameRunning,
+    Setup,
+    MainMenu,
+    Running,
     GameOver,
 }

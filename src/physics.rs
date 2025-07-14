@@ -69,7 +69,7 @@ impl Plugin for PhysicsPlugin {
                 blink_system,
             )
                 .chain()
-                .run_if(in_state(GameState::GameRunning)),
+                .run_if(in_state(GameState::Running)),
         );
     }
 }
@@ -139,7 +139,7 @@ fn apply_grounding_system(
     for (entity, mut transform, mut vel) in query.iter_mut() {
         let is_below_or_on_floor = transform.translation.y <= cfg.game.floor_y;
         let is_above_ground_threshold = transform.translation.y > cfg.game.floor_y + 0.01;
-        let is_falling = vel.current.y <= 0.0;
+        let is_falling = vel.target.y <= 0.0;
 
         if is_below_or_on_floor && is_falling {
             transform.translation.y = cfg.game.floor_y;
