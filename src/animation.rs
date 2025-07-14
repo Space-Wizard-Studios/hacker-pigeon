@@ -23,7 +23,7 @@ impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (animation_system).run_if(in_state(GameState::GameRunning)),
+            (animation_system).run_if(in_state(GameState::Running)),
         );
     }
 }

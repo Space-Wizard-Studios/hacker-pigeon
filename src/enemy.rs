@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_egui::egui::emath::ease_in_ease_out;
 use rand::Rng;
 
 use crate::{
@@ -189,7 +188,7 @@ pub struct EnemyPlugin;
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(EnemyRespawnTimer::default())
-            .add_systems(OnEnter(GameState::GameRunning), spawn_enemies)
+            .add_systems(OnEnter(GameState::Running), spawn_enemies)
             .add_systems(
                 Update,
                 (
@@ -197,7 +196,7 @@ impl Plugin for EnemyPlugin {
                     enemy_wobble_system,
                     enemy_respawn_system,
                 )
-                    .run_if(in_state(GameState::GameRunning)),
+                    .run_if(in_state(GameState::Running)),
             );
     }
 }
@@ -397,9 +396,18 @@ fn enemy_movement_system(
         let dir = phase.sin().signum();
 
         let t = (timer % period) / period;
-        let speed = ease_in_ease_out(t) * 2. - 1.;
+        let speed = ease_in_out(t) * 2. - 1.;
 
         vel.target.x = movement.speed * speed * dir;
+    }
+}
+
+fn ease_in_out(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    if t < 0.5 {
+        2.0 * t * t
+    } else {
+        -1.0 + (4.0 - 2.0 * t) * t
     }
 }
 

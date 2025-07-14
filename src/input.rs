@@ -22,7 +22,7 @@ impl Plugin for InputPlugin {
             .init_resource::<MousePos>()
             .add_systems(
                 Update,
-                (read_inputs, read_mouse_position).run_if(in_state(GameState::GameRunning)),
+                (read_inputs, read_mouse_position).run_if(in_state(GameState::Running)),
             );
     }
 }

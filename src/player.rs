@@ -97,7 +97,7 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::GameRunning), spawn_player)
+        app.add_systems(OnEnter(GameState::Running), spawn_player)
             .add_systems(
                 Update,
                 (
@@ -113,7 +113,7 @@ impl Plugin for PlayerPlugin {
                     nuke_system,
                 )
                     .chain()
-                    .run_if(in_state(GameState::GameRunning)),
+                    .run_if(in_state(GameState::Running)),
             );
     }
 }
