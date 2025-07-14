@@ -15,8 +15,9 @@ pub fn setup_gameover_ui(mut commands: Commands, score: Res<Score>) {
             display: Display::Flex,
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(16.),
+            padding: UiRect::all(Val::Px(16.)),
             width: Val::Percent(100.),
-            height: Val::Percent(100.0),
+            height: Val::Percent(100.),
             ..default()
         },
         BackgroundColor(tailwind::GRAY_900.with_alpha(0.8).into()),
@@ -42,7 +43,8 @@ pub fn setup_gameover_ui(mut commands: Commands, score: Res<Score>) {
                 Node {
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
-                    padding: UiRect::all(Val::Px(4.0)),
+                    padding: UiRect::all(Val::Px(8.0)),
+                    margin: UiRect::top(Val::Auto),
                     ..default()
                 },
                 BackgroundColor(tailwind::BLUE_700.into()),

@@ -29,9 +29,7 @@ pub fn update_health_ui(
     mut query_ui: Query<&mut Text, With<HealthUI>>,
     query_health: Query<&Health, With<Player>>,
 ) {
-    if let Ok(mut ui) = query_ui.single_mut() {
-        if let Ok(health) = query_health.single() {
-            **ui = format!("Health: {}/{}", health.current, health.max);
-        }
+    if let (Ok(mut ui), Ok(health)) = (query_ui.single_mut(), query_health.single()) {
+        **ui = format!("Health: {}/{}", health.current, health.max);
     }
 }
