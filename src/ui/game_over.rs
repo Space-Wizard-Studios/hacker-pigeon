@@ -6,10 +6,7 @@ use crate::{game_state::GameState, score::Score};
 #[derive(Component)]
 pub struct GameOverUI;
 
-pub fn setup_gameover_ui(
-    mut commands: Commands,
-    score: Res<Score>,
-) {
+pub fn setup_gameover_ui(mut commands: Commands, score: Res<Score>) {
     commands.spawn((
         GameOverUI,
         Node {
@@ -41,12 +38,22 @@ pub fn setup_gameover_ui(
                 TextColor(tailwind::GRAY_200.into()),
             ),
             (
-                Text::new("Click to Play Again"),
-                TextFont {
-                    font_size: 20.0,
+                Button,
+                Node {
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::all(Val::Px(4.0)),
                     ..default()
                 },
-                TextColor(tailwind::GRAY_200.into()),
+                BackgroundColor(tailwind::BLUE_700.into()),
+                children![(
+                    Text::new("Click to Play Again"),
+                    TextFont {
+                        font_size: 20.0,
+                        ..default()
+                    },
+                    TextColor(tailwind::GRAY_200.into()),
+                )],
             )
         ],
     ));

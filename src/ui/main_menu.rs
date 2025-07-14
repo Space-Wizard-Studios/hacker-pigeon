@@ -25,8 +25,7 @@ fn start_button() -> impl Bundle + use<> {
     (
         Button,
         Node {
-            width: Val::Px(300.0),
-            height: Val::Px(65.0),
+            padding: UiRect::all(Val::Px(8.0)),
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
             ..default()
